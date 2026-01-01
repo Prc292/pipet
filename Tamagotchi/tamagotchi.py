@@ -79,6 +79,10 @@ HEALTH_ALERT = 40.0        # health < this indicates low health
 ENERGY_ALERT = 20.0        # energy < this indicates low energy
 HAPPINESS_ALERT = 40.0     # happiness < this indicates low happiness
 
+# Badge animation parameters
+BADGE_PULSE_SPEED = 4.0    # cycles per second (angular speed multiplier)
+BADGE_PULSE_AMPLITUDE = 2  # extra pixels to add to base badge radius when pulsing
+
 NOTIFY_COOLDOWN = 120.0    # seconds before re-notifying same need
 # Reaction durations (seconds)
 REACTION_DURATION_HUNGER = 2.0
@@ -487,6 +491,8 @@ class GameEngine:
         # Animation state for stat panels: value (0-1), target (0/1), speed (units per second)
         self.stat_anim = {s["key"]: {"value": 0.0, "target": 0.0, "speed": 4.0} for s in self.stat_icons}
         self._last_step_time = time.time()
+        # badge pulse phase per stat (radians) - initialize early so updates run before first draw
+        self._badge_pulse_phase = {s["key"]: 0.0 for s in self.stat_icons}
         # Pet-level notified needs are persisted in Pet.notified_needs; expose nothing redundant here
         # Pending messages detected since last run (messages generated while away)
         self.pending_messages = []
@@ -753,6 +759,30 @@ class GameEngine:
         if self.tail_wag > 0.0:
             self.tail_wag = max(0.0, self.tail_wag - (dt * 1.5))
 
+    def _update_badge_pulses(self, dt):
+        """Advance badge pulse phases for stats that are currently low."""
+        low = self._get_low_needs()
+        for k in list(self._badge_pulse_phase.keys()):
+            if k in low:
+                # advance phase (radians) by angular speed scaled by dt
+                self._badge_pulse_phase[k] += dt * BADGE_PULSE_SPEED * math.pi * 2.0
+            else:
+                # decay towards zero phase so pulse is silent when not low
+                if self._badge_pulse_phase[k] != 0.0:
+                    # gently reduce phase to zero
+                    self._badge_pulse_phase[k] = max(0.0, self._badge_pulse_phase[k] - dt * BADGE_PULSE_SPEED * math.pi * 2.0)
+
+    def get_badge_pulse(self, stat_key):
+        """Return a 0.0-1.0 pulse factor for the given stat; 0 if not pulsing."""
+        if stat_key not in self._badge_pulse_phase:
+            return 0.0
+        # Only pulse if the stat is low
+        if stat_key not in self._get_low_needs():
+            return 0.0
+        phase = self._badge_pulse_phase.get(stat_key, 0.0)
+        # convert sin wave (-1..1) to normalized 0..1
+        return (math.sin(phase) + 1.0) / 2.0
+
     def is_blinking(self):
         return self.blinking
 
@@ -882,6 +912,7 @@ class GameEngine:
             "belly_squish": float(self.belly_squish),
             "idle_bob_offset": int(self.idle_bob_offset),
         }
+
 
     # Expose which stats are currently considered 'low' for tests/UI convenience
     # (e.g., shows a persistent badge on the icon when a stat crosses its alert).
@@ -1064,6 +1095,8 @@ class GameEngine:
         self._update_reactions(dt)
         # Pet appearance updates (blinking, bobbing, squish decay)
         self._update_pet_appearance(dt)
+        # Update badge pulse animations
+        self._update_badge_pulses(dt)
 
         # Rendering (top horizontal meters removed — icons now represent stats)
         self.screen.fill(COLOR_BG)
@@ -1098,9 +1131,13 @@ class GameEngine:
                 badge_color = (230, 60, 60)
                 bx = rect.right - 8
                 by = rect.y + 8
-                pygame.draw.circle(self.screen, badge_color, (bx, by), 6)
-                # small white dot to make it more readable
-                pygame.draw.circle(self.screen, (255,255,255), (bx, by), 2)
+                # Pulse factor 0..1
+                pulse = self.get_badge_pulse(s["key"])
+                base_radius = 6
+                r = base_radius + int(BADGE_PULSE_AMPLITUDE * pulse)
+                pygame.draw.circle(self.screen, badge_color, (bx, by), r)
+                # small white dot to make it more readable (slightly smaller)
+                pygame.draw.circle(self.screen, (255,255,255), (bx, by), max(2, r-4))
         center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
         if not self.pet.is_alive:
             pygame.draw.circle(self.screen, (100, 100, 100), center, 50)
