@@ -74,6 +74,11 @@ EVOLUTION_MIN_CARE = 50.0  # average (health+happiness)/2 required to evolve
 # Need/notification thresholds and reaction config
 HUNGER_ALERT = 80.0        # hunger > this triggers hungry notification
 CLEANLINESS_ALERT = 30.0   # cleanliness < this triggers bath notification
+# Additional UI-only alert thresholds (show persistent badge on icon)
+HEALTH_ALERT = 40.0        # health < this indicates low health
+ENERGY_ALERT = 20.0        # energy < this indicates low energy
+HAPPINESS_ALERT = 40.0     # happiness < this indicates low happiness
+
 NOTIFY_COOLDOWN = 120.0    # seconds before re-notifying same need
 # Reaction durations (seconds)
 REACTION_DURATION_HUNGER = 2.0
@@ -886,7 +891,13 @@ class GameEngine:
             low.add("hunger")
         if self.pet.cleanliness < CLEANLINESS_ALERT:
             low.add("cleanliness")
-        # Additional thresholds can be added here (health, energy, etc.)
+        # Additional thresholds: health, energy, happiness
+        if self.pet.health < HEALTH_ALERT:
+            low.add("health")
+        if self.pet.energy < ENERGY_ALERT:
+            low.add("energy")
+        if self.pet.happiness < HAPPINESS_ALERT:
+            low.add("happiness")
         return low
     def step(self):
         """Process a single loop iteration (useful for headless tests). Returns False to stop."""
