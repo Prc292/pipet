@@ -1,0 +1,23 @@
+# Systemd service template for Pocket Pi-Pet
+# Copy this file to /etc/systemd/system/tamagotchi.service and update User, Group and paths.
+[Unit]
+Description=Pocket Pi-Pet Tamagotchi
+After=network.target
+
+[Service]
+# Change these to the user and group that should run the game (e.g., pi)
+User=pi
+Group=pi
+
+# Environment variables for SDL; adjust as needed for your hardware
+Environment=SDL_VIDEODRIVER=kmsdrm
+Environment=SDL_AUDIODRIVER=alsa
+
+# Working directory should be the project root containing tamagotchi.py
+WorkingDirectory=/home/pi/pocket-pi-pet
+ExecStart=/home/pi/pocket-pi-pet/.venv/bin/python3 /home/pi/pocket-pi-pet/tamagotchi.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
