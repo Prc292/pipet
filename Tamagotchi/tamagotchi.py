@@ -877,6 +877,17 @@ class GameEngine:
             "belly_squish": float(self.belly_squish),
             "idle_bob_offset": int(self.idle_bob_offset),
         }
+
+    # Expose which stats are currently considered 'low' for tests/UI convenience
+    # (e.g., shows a persistent badge on the icon when a stat crosses its alert).
+    def _get_low_needs(self):
+        low = set()
+        if self.pet.hunger > HUNGER_ALERT:
+            low.add("hunger")
+        if self.pet.cleanliness < CLEANLINESS_ALERT:
+            low.add("cleanliness")
+        # Additional thresholds can be added here (health, energy, etc.)
+        return low
     def step(self):
         """Process a single loop iteration (useful for headless tests). Returns False to stop."""
         for event in pygame.event.get():
@@ -1055,6 +1066,11 @@ class GameEngine:
                 rect = pygame.Rect(cx - 16, 8, 32, 32)  # small circular icon area
                 self.stat_icon_rects.append(rect)
 
+        # Compute currently 'low' needs for persistent icon badges
+        low_needs = self._get_low_needs()
+        # Expose for tests and UI introspection
+        self._last_low_needs = list(sorted(low_needs))
+
         for i, s in enumerate(self.stat_icons):
             rect = self.stat_icon_rects[i]
             value = getattr(self.pet, s["key"]) if s["key"] != "hunger" else 100 - self.pet.hunger
@@ -1066,7 +1082,14 @@ class GameEngine:
             pygame.draw.rect(self.screen, s["color"], fill_rect)
             # Draw a small icon representing the stat
             self.draw_stat_icon(rect, s["key"], s["color"])
-
+            # If this stat is currently low, draw a persistent red badge in the corner
+            if s["key"] in low_needs:
+                badge_color = (230, 60, 60)
+                bx = rect.right - 8
+                by = rect.y + 8
+                pygame.draw.circle(self.screen, badge_color, (bx, by), 6)
+                # small white dot to make it more readable
+                pygame.draw.circle(self.screen, (255,255,255), (bx, by), 2)
         center = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
         if not self.pet.is_alive:
             pygame.draw.circle(self.screen, (100, 100, 100), center, 50)
