@@ -1061,14 +1061,17 @@ class GameEngine:
                 elif self.menu_open and self.pending_confirmation and self.pending_confirmation.get("system") and hasattr(self, '_system_confirmation_rects'):
                     yes, no = self._system_confirmation_rects
                     if yes.collidepoint(event.pos):
-                        # Confirm: persist, perform, and clear pending
+                        # Confirm: persist state now, start countdown for system action and clear pending
                         try:
                             self.pet.save()
                         except Exception:
                             pass
                         act = self.pending_confirmation.get("action")
                         self.pending_confirmation = None
-                        self._perform_system_action(act)
+                        # Start countdown (seconds)
+                        self._system_countdown = getattr(self, '_system_action_countdown', 5.0)
+                        self._system_countdown_action = act
+                        self.show_hud(f"{act.capitalize()} in {int(self._system_countdown)}s (Cancel?)")
                         handled = True
                         break
                     if no.collidepoint(event.pos):
@@ -1206,8 +1209,11 @@ class GameEngine:
                 pygame.draw.line(self.screen, (200,200,200), (sx+6, sy+2), (sx-2, sy-10), 2)
 
         if self.menu_open:
-            # Menu background (taller to accomodate system buttons)
-            menu_rect = pygame.Rect(120, 210, 260, 140)
+            # Menu background (taller to accomodate system buttons). Compute y so the
+            # menu never draws off-screen on small displays.
+            menu_h = 140
+            menu_y = max(10, min(210, SCREEN_HEIGHT - menu_h - 10))
+            menu_rect = pygame.Rect(120, menu_y, 260, menu_h)
             pygame.draw.rect(self.screen, COLOR_UI_BG, menu_rect, border_radius=8)
             # If there are pending messages, show them and an Acknowledge button
             if self.pending_messages:
@@ -1221,7 +1227,15 @@ class GameEngine:
                 # store ack rect for click handling
                 self._ack_rect = ack
             else:
-                self.screen.blit(self.small_font.render("No messages", True, COLOR_TEXT), (120+8, 210+8))
+                self.screen.blit(self.small_font.render("No messages", True, COLOR_TEXT), (menu_rect.x + 8, menu_rect.y + 8))
+            # Layout quick-actions & system buttons relative to menu to ensure visibility
+            quick_y = menu_rect.y + 40
+            system_y = menu_rect.y + 80
+            # Position popup rects relative to menu
+            self.popup_clean.topleft = (menu_rect.x + 12, quick_y)
+            self.popup_med.topleft = (menu_rect.x + 140, quick_y)
+            self.popup_shutdown.topleft = (menu_rect.x + 12, system_y)
+            self.popup_restart.topleft = (menu_rect.x + 140, system_y)
             # Draw popup quick-actions
             pygame.draw.rect(self.screen, (80,80,80), self.popup_clean, border_radius=6)
             self.screen.blit(self.small_font.render("Clean", True, COLOR_TEXT), (self.popup_clean.x + 10, self.popup_clean.y + 12))
@@ -1309,10 +1323,6 @@ class GameEngine:
         pygame.draw.rect(self.screen, (100, 100, 100), self.btn_menu, border_radius=6)
         self.screen.blit(self.font.render("MENU", True, COLOR_TEXT), (self.btn_menu.x + 2, self.btn_menu.y + 5))
 
-        # Optionally draw a small quit area (useful for desktop debugging)
-        self.btn_quit = pygame.Rect(8, SCREEN_HEIGHT - 36, 80, 28)
-        pygame.draw.rect(self.screen, (120,80,80), self.btn_quit, border_radius=6)
-        self.screen.blit(self.small_font.render("Quit", True, COLOR_TEXT), (self.btn_quit.x + 8, self.btn_quit.y + 6))
 
         pygame.display.flip()
         # Use instance FPS (may be reduced on Pi for compatibility)
