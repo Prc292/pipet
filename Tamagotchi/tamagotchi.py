@@ -480,11 +480,7 @@ class GameEngine:
         if self.is_raspberry_pi:
             self.show_hud(f"Pi detected: fps={self.fps}", duration=2.0)
         
-        # Remove menu system, add always-visible action buttons at bottom
-        self.btn_feed = pygame.Rect(40, 260, 100, 40)
-        self.btn_play = pygame.Rect(140, 260, 100, 40)
-        self.btn_nap  = pygame.Rect(240, 260, 100, 40)
-        self.btn_bath = pygame.Rect(340, 260, 100, 40)
+        # Remove menu system, no always-visible action buttons at bottom
         # Add menu button for UI tests
         self.btn_menu = pygame.Rect(12, 12, 40, 32)
         # Add popup_clean and popup_med for UI tests (matches popup_shutdown style)
@@ -1119,30 +1115,6 @@ class GameEngine:
                 # Menu button
                 if self.btn_menu.collidepoint(event.pos):
                     self.menu_open = not self.menu_open
-                # Check for action button clicks at the bottom
-                if self.btn_feed.collidepoint(event.pos):
-                    self.pet.feed()
-                    self.sounds.play_effect("feed")
-                    self._start_reaction("hunger", REACTION_DURATION_HUNGER)
-                    # Clear hunger notification if present
-                    if self.hud_text == "I'm hungry!":
-                        self.hud_text = None
-                        self.hud_is_notification = False
-                elif self.btn_play.collidepoint(event.pos):
-                    self.pet.play()
-                    self.sounds.play_effect("play")
-                    self._start_reaction("happiness", REACTION_DURATION_HUNGER)
-                elif self.btn_nap.collidepoint(event.pos):
-                    self.pet.nap()
-                    self.sounds.play_effect("nap")
-                    self._start_reaction("energy", REACTION_DURATION_HUNGER)
-                elif self.btn_bath.collidepoint(event.pos):
-                    self.pet.clean()
-                    self.sounds.play_effect("clean")
-                    # Clear bath notification if present
-                    if self.hud_text == "I need a bath!":
-                        self.hud_text = None
-                        self.hud_is_notification = False
                 # popup_clean for UI test
                 elif self.popup_clean.collidepoint(event.pos):
                     self.pet.clean()
@@ -1492,23 +1464,6 @@ class GameEngine:
             self._show_save_blink -= dt
             pygame.draw.circle(self.screen, (200, 200, 200), (SCREEN_WIDTH - 10, 10), 4)
 
-        # Draw always-visible action buttons at bottom
-        # Feed button
-        pygame.draw.rect(self.screen, (80, 180, 80), self.btn_feed, border_radius=8)
-        feed_lbl = self.font.render("Feed", True, COLOR_TEXT)
-        self.screen.blit(feed_lbl, (self.btn_feed.x + (self.btn_feed.width - feed_lbl.get_width()) // 2, self.btn_feed.y + 8))
-        # Play button
-        pygame.draw.rect(self.screen, (80, 120, 200), self.btn_play, border_radius=8)
-        play_lbl = self.font.render("Play", True, COLOR_TEXT)
-        self.screen.blit(play_lbl, (self.btn_play.x + (self.btn_play.width - play_lbl.get_width()) // 2, self.btn_play.y + 8))
-        # Nap button
-        pygame.draw.rect(self.screen, (180, 180, 80), self.btn_nap, border_radius=8)
-        nap_lbl = self.font.render("Nap", True, COLOR_TEXT)
-        self.screen.blit(nap_lbl, (self.btn_nap.x + (self.btn_nap.width - nap_lbl.get_width()) // 2, self.btn_nap.y + 8))
-        # Bath button
-        pygame.draw.rect(self.screen, (80, 120, 180), self.btn_bath, border_radius=8)
-        bath_lbl = self.font.render("Bath", True, COLOR_TEXT)
-        self.screen.blit(bath_lbl, (self.btn_bath.x + (self.btn_bath.width - bath_lbl.get_width()) // 2, self.btn_bath.y + 8))
 
         pygame.display.flip()
         # Use instance FPS (may be reduced on Pi for compatibility)
