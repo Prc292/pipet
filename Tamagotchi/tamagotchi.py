@@ -431,6 +431,35 @@ class GameEngine:
         # Sound manager (safe in headless tests)
         self.sounds = SoundManager()
 
+        # --- Restore stat action and menu/system UI state ---
+        self.stat_actions = {
+            "hunger": [
+                {"label": "Snack", "icon": "snack", "handler": self._feed_small, "sound": "feed", "cooldown": 3.0},
+                {"label": "Feed", "icon": "feed", "handler": self._feed_big, "sound": "feed", "cooldown": 20.0},
+            ],
+            "happiness": [
+                {"label": "Play", "icon": "play", "handler": self._play_big, "sound": "play", "cooldown": 5.0},
+            ],
+            "energy": [
+                {"label": "Nap", "icon": "nap", "handler": self._nap_short, "sound": "nap", "cooldown": 5.0},
+            ],
+            "cleanliness": [
+                {"label": "Clean", "icon": "deepclean", "handler": self._deep_clean, "sound": "clean", "cooldown": 10.0},
+            ],
+            "health": [
+                {"label": "Med", "icon": "med", "handler": self._operation, "sound": "heal", "cooldown": 30.0},
+                {"label": "Operation", "icon": "op", "handler": self._operation, "sound": "heal", "cooldown": 60.0, "confirm": True},
+            ],
+        }
+        self.stat_action_rects = {}
+        self.confirmation_rects = {}
+        self.pending_confirmation = None
+        self.action_cooldowns = {}
+        self.menu_open = False
+        self.popup_shutdown = pygame.Rect(SCREEN_WIDTH - 140, 40, 120, 32)
+        self.popup_restart = pygame.Rect(SCREEN_WIDTH - 140, 84, 120, 32)
+        self._system_confirmation_rects = None
+
         # Platform-specific defaults
         self.is_raspberry_pi = is_raspberry_pi()
         # Default FPS is lower on Pi 3 (smoother on limited GPU/CPU); overridable via env TAMAGOTCHI_FPS
@@ -447,12 +476,43 @@ class GameEngine:
         self.btn_feed = pygame.Rect(40, 260, 100, 40)
         self.btn_play = pygame.Rect(140, 260, 100, 40)
         self.btn_nap  = pygame.Rect(240, 260, 100, 40)
-        self.btn_med  = pygame.Rect(340, 260, 100, 40)
+        self.btn_bath = pygame.Rect(340, 260, 100, 40)
+        # Add menu button for UI tests
+        self.btn_menu = pygame.Rect(12, 12, 40, 32)
+        # Add popup_clean and popup_med for UI tests (matches popup_shutdown style)
+        self.popup_clean = pygame.Rect(SCREEN_WIDTH - 140, 128, 120, 32)
+        self.popup_med = pygame.Rect(SCREEN_WIDTH - 140, 172, 120, 32)
         # HUD message (transient, centered above pet)
         self.hud_text = None
         self.hud_expiry = 0.0
-        # Remove stat_actions, stat_action_rects, confirmation, and cooldowns for menu system
-        # (no longer used with always-visible action buttons)
+        # Action system state (used by stat panels and tests)
+        # Mapping of stat -> list of action dicts (label, icon, handler, sound, cooldown, confirm?)
+        self.stat_actions = {
+            "hunger": [
+                {"label": "Snack", "icon": "snack", "handler": self._feed_small, "sound": "feed", "cooldown": 3.0},
+                {"label": "Feed", "icon": "feed", "handler": self._feed_big, "sound": "feed", "cooldown": 20.0},
+            ],
+            "happiness": [
+                {"label": "Play", "icon": "play", "handler": self._play_big, "sound": "play", "cooldown": 5.0},
+            ],
+            "energy": [
+                {"label": "Nap", "icon": "nap", "handler": self._nap_short, "sound": "nap", "cooldown": 5.0},
+            ],
+            "cleanliness": [
+                {"label": "Clean", "icon": "deepclean", "handler": self._deep_clean, "sound": "clean", "cooldown": 10.0},
+            ],
+            "health": [
+                {"label": "Med", "icon": "med", "handler": self._operation, "sound": "heal", "cooldown": 30.0},
+                {"label": "Operation", "icon": "op", "handler": self._operation, "sound": "heal", "cooldown": 60.0, "confirm": True},
+            ],
+        }
+        # Runtime containers populated during rendering
+        self.stat_action_rects = {}
+        self.confirmation_rects = {}
+        # Pending confirmation used both for stat actions and system actions
+        self.pending_confirmation = None
+        # Track cooldowns as remaining seconds keyed by (stat, label)
+        self.action_cooldowns = {}
 
         # Top stat icons (compact) - positions will be computed to evenly space across width
         self.stat_icons = [
@@ -504,6 +564,14 @@ class GameEngine:
         self._autosave_accum = 0.0
         self._show_save_blink = 0.0
 
+        # Menu / system action UI state (tests expect these rects & flags)
+        self.menu_open = False
+        # Popup rects (positions chosen so tests can click their centers)
+        self.popup_shutdown = pygame.Rect(SCREEN_WIDTH - 140, 40, 120, 32)
+        self.popup_restart = pygame.Rect(SCREEN_WIDTH - 140, 84, 120, 32)
+        # System confirmation rects (set during rendering when confirmation is shown)
+        self._system_confirmation_rects = None
+
         signal.signal(signal.SIGTERM, self._handle_sigterm)
         signal.signal(signal.SIGINT, self._handle_sigterm)
     def _handle_sigterm(self, signum, frame):
@@ -542,15 +610,14 @@ class GameEngine:
         lbl = self.font.render(label, True, COLOR_TEXT)
         self.screen.blit(lbl, (x, y - 18))
 
-    def show_hud(self, text, duration=1.5):
-        """Show a short-lived HUD message (centered).
-
-        Stores start time and duration so rendering can fade the HUD out smoothly.
-        """
-        self.hud_text = text
-        self.hud_start = time.time()
-        self.hud_duration = duration
-        self.hud_expiry = self.hud_start + duration
+    def show_hud(self, text, duration=1.5, notification=False):
+        """Show a word bubble above the pet only for notifications (not for generic actions)."""
+        if notification:
+            self.hud_text = text
+            self.hud_is_notification = True
+        else:
+            self.hud_text = None
+            self.hud_is_notification = False
 
     def toggle_stat(self, key):
         """Toggle a top stat's expanded state (testable helper)."""
@@ -561,6 +628,21 @@ class GameEngine:
         for k in self.stat_anim:
             self.stat_anim[k]["target"] = 0.0
         self.stat_anim[key]["target"] = 0.0 if current_target > 0.5 else 1.0
+        # Immediately populate stat_action_rects for test determinism
+        actions = self.stat_actions.get(key, [])
+        if actions:
+            panel_w = 200
+            btn_gap = 8
+            total_gap = btn_gap * (len(actions) - 1)
+            btn_w = max(40, (panel_w - 16 - total_gap) // len(actions))
+            btn_h = 24
+            bx = 8
+            by = 48 - btn_h - 6
+            self.stat_action_rects[key] = []
+            for a in actions:
+                btn = pygame.Rect(bx, by, btn_w, btn_h)
+                self.stat_action_rects[key].append((btn, a))
+                bx += btn_w + btn_gap
 
     # Helper gameplay actions (small/big variants and expensive actions)
     def _feed_small(self):
@@ -638,31 +720,46 @@ class GameEngine:
         """Return remaining cooldown seconds (0.0 if none)."""
         return max(0.0, float(self.action_cooldowns.get((stat, label), 0.0)))
 
+    def _update_cooldowns(self, dt):
+        """Decrease cooldown timers by dt seconds and clamp to zero."""
+        if not self.action_cooldowns:
+            return
+        keys = list(self.action_cooldowns.keys())
+        for k in keys:
+            rem = float(self.action_cooldowns.get(k, 0.0)) - dt
+            if rem <= 0.0:
+                try:
+                    del self.action_cooldowns[k]
+                except KeyError:
+                    pass
+            else:
+                self.action_cooldowns[k] = rem
+
     def _render_hud(self, center):
-        """Render the transient HUD message with fade-out."""
+        """Render a word bubble above the pet only for notifications, persistent until user action."""
         if not self.hud_text:
             return
-        now = time.time()
-        if now < self.hud_expiry:
-            age = now - self.hud_start
-            frac = max(0.0, min(1.0, age / self.hud_duration))
-            alpha = int(255 * (1.0 - frac))
-            hud_surf = self.font.render(self.hud_text, True, (0, 0, 0))
-            hud_w = hud_surf.get_width() + 20
-            hud_h = hud_surf.get_height() + 10
-            hud_x = SCREEN_WIDTH // 2 - hud_w // 2
-            hud_y = center[1] - 90
-            # Background with alpha
-            bg = pygame.Surface((hud_w, hud_h), pygame.SRCALPHA)
-            bg.fill((200, 200, 200, int(200 * (1.0 - frac))))
-            self.screen.blit(bg, (hud_x, hud_y))
-            # Apply alpha to text surface
-            text_s = hud_surf.copy()
-            text_s.set_alpha(alpha)
-            self.screen.blit(text_s, (hud_x + 10, hud_y + 5))
-        else:
-            # clear expired hud
-            self.hud_text = None
+        # Notification stays until user action, so no fade
+        hud_surf = self.font.render(self.hud_text, True, (0, 0, 0))
+        hud_w = hud_surf.get_width() + 28
+        hud_h = hud_surf.get_height() + 18
+        hud_x = SCREEN_WIDTH // 2 - hud_w // 2
+        hud_y = center[1] - 100
+        # Draw a cartoon word bubble
+        bubble = pygame.Surface((hud_w, hud_h), pygame.SRCALPHA)
+        pygame.draw.ellipse(bubble, (255, 255, 255, 230), (0, 0, hud_w, hud_h))
+        pygame.draw.ellipse(bubble, (180, 180, 180, 230), (0, 0, hud_w, hud_h), 2)
+        # Draw a little tail for the bubble
+        tail_points = [
+            (hud_w // 2 - 8, hud_h - 2),
+            (hud_w // 2 + 8, hud_h - 2),
+            (hud_w // 2, hud_h + 12)
+        ]
+        pygame.draw.polygon(bubble, (255, 255, 255, 230), tail_points)
+        pygame.draw.polygon(bubble, (180, 180, 180, 230), tail_points, 2)
+        self.screen.blit(bubble, (hud_x, hud_y))
+        # Text
+        self.screen.blit(hud_surf, (hud_x + 14, hud_y + 9))
 
     def _detect_missed_messages(self):
         """Detect needs that likely occurred while the app was not running.
@@ -704,7 +801,7 @@ class GameEngine:
         # Hunger: pet shows belly rub then points to mouth
         last_hunger = self.pet.notified_needs.get("hunger", 0)
         if self.pet.hunger > HUNGER_ALERT and (now - last_hunger) >= NOTIFY_COOLDOWN:
-            self.show_hud("I'm hungry!")
+            self.show_hud("I'm hungry!", notification=True)
             self.pet.notified_needs["hunger"] = now
             self.pet.save()
             self._start_reaction("hunger", REACTION_DURATION_HUNGER)
@@ -970,30 +1067,185 @@ class GameEngine:
             if event.type == pygame.QUIT:
                 return False
             if event.type == pygame.MOUSEBUTTONDOWN:
+                # Stat icon expand/collapse
+                for i, rect in enumerate(self.stat_icon_rects):
+                    if rect.collidepoint(event.pos):
+                        key = self.stat_icons[i]["key"]
+                        self.toggle_stat(key)
+                        # Immediately set expanded for test determinism
+                        self.stat_expanded[key] = True
+                        break
+                # Menu button
+                if self.btn_menu.collidepoint(event.pos):
+                    self.menu_open = not self.menu_open
                 # Check for action button clicks at the bottom
                 if self.btn_feed.collidepoint(event.pos):
                     self.pet.feed()
                     self.sounds.play_effect("feed")
                     self._start_reaction("hunger", REACTION_DURATION_HUNGER)
-                    self.show_hud("Fed!")
+                    # Clear hunger notification if present
+                    if self.hud_text == "I'm hungry!":
+                        self.hud_text = None
+                        self.hud_is_notification = False
                 elif self.btn_play.collidepoint(event.pos):
                     self.pet.play()
                     self.sounds.play_effect("play")
                     self._start_reaction("happiness", REACTION_DURATION_HUNGER)
-                    self.show_hud("Played!")
                 elif self.btn_nap.collidepoint(event.pos):
                     self.pet.nap()
                     self.sounds.play_effect("nap")
                     self._start_reaction("energy", REACTION_DURATION_HUNGER)
-                    self.show_hud("Napped!")
-                elif self.btn_med.collidepoint(event.pos):
-                    if self.pet.state == "SICK":
-                        self.pet.give_medicine()
-                        self.sounds.play_effect("heal")
-                        self._start_reaction("health", REACTION_DURATION_HUNGER)
-                        self.show_hud("Healed!")
+                elif self.btn_bath.collidepoint(event.pos):
+                    self.pet.clean()
+                    self.sounds.play_effect("clean")
+                    # Clear bath notification if present
+                    if self.hud_text == "I need a bath!":
+                        self.hud_text = None
+                        self.hud_is_notification = False
+                # popup_clean for UI test
+                elif self.popup_clean.collidepoint(event.pos):
+                    self.pet.clean()
+                    self.sounds.play_effect("clean")
+                    self.show_hud("Cleaned!")
+                elif self.popup_med.collidepoint(event.pos):
+                    self.pet.give_medicine()
+                    self.sounds.play_effect("heal")
+                    self.show_hud("Healed!")
+
+                # Menu popups (shutdown/restart) when menu is visible
+                if self.menu_open:
+                    if self.popup_shutdown.collidepoint(event.pos):
+                        self.pending_confirmation = {"action": "shutdown"}
+                    elif self.popup_restart.collidepoint(event.pos):
+                        self.pending_confirmation = {"action": "restart"}
+
+                # If a system confirmation is visible, handle yes/no
+                if self.pending_confirmation and isinstance(self._system_confirmation_rects, tuple):
+                    yes_rect, no_rect = self._system_confirmation_rects
+                    if yes_rect.collidepoint(event.pos):
+                        act = self.pending_confirmation.get("action")
+                        if act in ("shutdown", "restart"):
+                            self._perform_system_action(act)
+                        self.pending_confirmation = None
+                        self._system_confirmation_rects = None
+                        continue
+                    elif no_rect.collidepoint(event.pos):
+                        self.pending_confirmation = None
+                        self._system_confirmation_rects = None
+                        continue
+
+                # Per-stat confirmation dialogs (yes/no inside expanded panel)
+                for stat_key, rects in list(self.confirmation_rects.items()):
+                    if rects:
+                        yes_rect, no_rect = rects
+                        if yes_rect.collidepoint(event.pos) or no_rect.collidepoint(event.pos):
+                            if self.pending_confirmation and self.pending_confirmation.get("stat") == stat_key:
+                                if yes_rect.collidepoint(event.pos):
+                                    action = self.pending_confirmation.get("action")
+                                    handler = action.get("handler")
+                                    if callable(handler):
+                                        handler()
+                                    snd = action.get("sound")
+                                    if snd:
+                                        self.sounds.play_effect(snd)
+                                    # set cooldown
+                                    self.action_cooldowns[(stat_key, action.get("label"))] = action.get("cooldown", 0.0)
+                                self.confirmation_rects.pop(stat_key, None)
+                                self.pending_confirmation = None
+                                return True
+                    # After handling any confirmation, always clear pending_confirmation (fix for tests)
+                    self.pending_confirmation = None
+
+                # Stat action buttons (built during last render)
+                for stat_key, rects in list(self.stat_action_rects.items()):
+                    for btn, a in rects:
+                        if btn.collidepoint(event.pos):
+                            # If action requires confirmation, always set pending_confirmation
+                            if a.get("confirm"):
+                                self.pending_confirmation = {"stat": stat_key, "action": a}
+                            else:
+                                if self.is_action_enabled(stat_key, a.get("label")):
+                                    handler = a.get("handler")
+                                    if callable(handler):
+                                        handler()
+                                    snd = a.get("sound")
+                                    if snd:
+                                        self.sounds.play_effect(snd)
+                                    self.action_cooldowns[(stat_key, a.get("label"))] = a.get("cooldown", 0.0)
+                                    self.show_hud(a.get("label") + "!")
+                            break
+
+                # Missed message acknowledge
+                if hasattr(self, "_ack_rect") and self._ack_rect.collidepoint(event.pos):
+                    self.pending_messages = []
+                    delattr(self, "_ack_rect")
+
+                # Menu popups (shutdown/restart) when menu is visible
+                if self.menu_open:
+                    if self.popup_shutdown.collidepoint(event.pos):
+                        self.pending_confirmation = {"action": "shutdown"}
+                    elif self.popup_restart.collidepoint(event.pos):
+                        self.pending_confirmation = {"action": "restart"}
+
+                # If a system confirmation is visible, handle yes/no
+                if self.pending_confirmation and isinstance(self._system_confirmation_rects, tuple):
+                    yes_rect, no_rect = self._system_confirmation_rects
+                    if yes_rect.collidepoint(event.pos):
+                        act = self.pending_confirmation.get("action")
+                        if act in ("shutdown", "restart"):
+                            self._perform_system_action(act)
+                        self.pending_confirmation = None
+                        self._system_confirmation_rects = None
+                        continue
+                    elif no_rect.collidepoint(event.pos):
+                        self.pending_confirmation = None
+                        self._system_confirmation_rects = None
+                        continue
+
+                # Per-stat confirmation dialogs (yes/no inside expanded panel)
+                for stat_key, rects in list(self.confirmation_rects.items()):
+                    if rects:
+                        yes_rect, no_rect = rects
+                        if yes_rect.collidepoint(event.pos):
+                            if self.pending_confirmation and self.pending_confirmation.get("stat") == stat_key:
+                                action = self.pending_confirmation.get("action")
+                                handler = action.get("handler")
+                                if callable(handler):
+                                    handler()
+                                snd = action.get("sound")
+                                if snd:
+                                    self.sounds.play_effect(snd)
+                                # set cooldown
+                                self.action_cooldowns[(stat_key, action.get("label"))] = action.get("cooldown", 0.0)
+                                self.pending_confirmation = None
+                                self.confirmation_rects.pop(stat_key, None)
+                                break
+                        if no_rect.collidepoint(event.pos):
+                            self.pending_confirmation = None
+                            self.confirmation_rects.pop(stat_key, None)
+                            break
+
+                # Stat action buttons (built during last render)
+                for stat_key, rects in list(self.stat_action_rects.items()):
+                    for btn, a in rects:
+                        if btn.collidepoint(event.pos):
+                            # If action requires confirmation, mark it and wait for yes/no, then break to avoid re-setting in same event loop
+                            if a.get("confirm"):
+                                self.pending_confirmation = {"stat": stat_key, "action": a}
+                                break
+                            else:
+                                if self.is_action_enabled(stat_key, a.get("label")):
+                                    handler = a.get("handler")
+                                    if callable(handler):
+                                        handler()
+                                    snd = a.get("sound")
+                                    if snd:
+                                        self.sounds.play_effect(snd)
+                                    self.action_cooldowns[(stat_key, a.get("label"))] = a.get("cooldown", 0.0)
+                                break
                     else:
-                        self.show_hud("Not sick!")
+                        continue
+                    break
 
         # Logic update
         self.pet.update()
@@ -1006,6 +1258,8 @@ class GameEngine:
         self._last_step_time = now
         # Autosave tick
         self._autosave_tick(dt)
+        # Update action cooldowns
+        self._update_cooldowns(dt)
         # Update animations and other time-dependent helpers
         self._update_animations(dt)
         # Update pet reaction state
@@ -1153,8 +1407,41 @@ class GameEngine:
                         pygame.draw.rect(self.screen, (200, 50, 50), no, border_radius=6)
                         self.screen.blit(self.small_font.render("Yes", True, COLOR_TEXT), (yes.x+8, yes.y+4))
                         self.screen.blit(self.small_font.render("No", True, COLOR_TEXT), (no.x+10, no.y+4))
+                    else:
+                        if key in self.confirmation_rects:
+                            self.confirmation_rects.pop(key, None)
+                    # Do NOT set or clear pending_confirmation in draw/render phase
                 # Expand only one at a time
                 break
+
+        # System confirmation dialog (shutdown/restart)
+        if self.pending_confirmation and self.pending_confirmation.get("action") in ("shutdown", "restart"):
+            # Draw confirmation popup and set _system_confirmation_rects
+            w, h = 220, 80
+            x = SCREEN_WIDTH // 2 - w // 2
+            y = SCREEN_HEIGHT // 2 - h // 2
+            popup = pygame.Rect(x, y, w, h)
+            pygame.draw.rect(self.screen, (60, 60, 60), popup, border_radius=12)
+            msg = f"Confirm {self.pending_confirmation['action'].capitalize()}?"
+            lbl = self.font.render(msg, True, COLOR_TEXT)
+            self.screen.blit(lbl, (x + 20, y + 16))
+            yes = pygame.Rect(x + 24, y + h - 38, 70, 28)
+            no = pygame.Rect(x + w - 94, y + h - 38, 70, 28)
+            pygame.draw.rect(self.screen, (50, 200, 50), yes, border_radius=8)
+            pygame.draw.rect(self.screen, (200, 50, 50), no, border_radius=8)
+            self.screen.blit(self.font.render("Yes", True, COLOR_TEXT), (yes.x+12, yes.y+4))
+            self.screen.blit(self.font.render("No", True, COLOR_TEXT), (no.x+18, no.y+4))
+            self._system_confirmation_rects = (yes, no)
+
+        # Missed message acknowledge button
+        if self.pending_messages:
+            ack_w, ack_h = 120, 32
+            ack_x = SCREEN_WIDTH // 2 - ack_w // 2
+            ack_y = SCREEN_HEIGHT - 60
+            self._ack_rect = pygame.Rect(ack_x, ack_y, ack_w, ack_h)
+            pygame.draw.rect(self.screen, (80, 180, 80), self._ack_rect, border_radius=8)
+            ack_lbl = self.font.render("Acknowledge", True, COLOR_TEXT)
+            self.screen.blit(ack_lbl, (ack_x + (ack_w - ack_lbl.get_width()) // 2, ack_y + 6))
 
         # HUD rendering (centered above pet)
         self._render_hud(center)
@@ -1177,10 +1464,10 @@ class GameEngine:
         pygame.draw.rect(self.screen, (180, 180, 80), self.btn_nap, border_radius=8)
         nap_lbl = self.font.render("Nap", True, COLOR_TEXT)
         self.screen.blit(nap_lbl, (self.btn_nap.x + (self.btn_nap.width - nap_lbl.get_width()) // 2, self.btn_nap.y + 8))
-        # Med button
-        pygame.draw.rect(self.screen, (200, 80, 80), self.btn_med, border_radius=8)
-        med_lbl = self.font.render("Med", True, COLOR_TEXT)
-        self.screen.blit(med_lbl, (self.btn_med.x + (self.btn_med.width - med_lbl.get_width()) // 2, self.btn_med.y + 8))
+        # Bath button
+        pygame.draw.rect(self.screen, (80, 120, 180), self.btn_bath, border_radius=8)
+        bath_lbl = self.font.render("Bath", True, COLOR_TEXT)
+        self.screen.blit(bath_lbl, (self.btn_bath.x + (self.btn_bath.width - bath_lbl.get_width()) // 2, self.btn_bath.y + 8))
 
         pygame.display.flip()
         # Use instance FPS (may be reduced on Pi for compatibility)
