@@ -1057,6 +1057,26 @@ class GameEngine:
                     except Exception:
                         pass
                     self.show_hud("Messages acknowledged")
+                # System confirmation handling (Yes/No) - these rects are created during draw
+                elif self.menu_open and self.pending_confirmation and self.pending_confirmation.get("system") and hasattr(self, '_system_confirmation_rects'):
+                    yes, no = self._system_confirmation_rects
+                    if yes.collidepoint(event.pos):
+                        # Confirm: persist, perform, and clear pending
+                        try:
+                            self.pet.save()
+                        except Exception:
+                            pass
+                        act = self.pending_confirmation.get("action")
+                        self.pending_confirmation = None
+                        self._perform_system_action(act)
+                        handled = True
+                        break
+                    if no.collidepoint(event.pos):
+                        # Cancel confirmation
+                        self.pending_confirmation = None
+                        self.show_hud("Cancelled")
+                        handled = True
+                        break
                 elif self.menu_open and self.popup_clean.collidepoint(event.pos):
                     old = self.pet.cleanliness
                     if self.pet.is_alive:
@@ -1072,18 +1092,13 @@ class GameEngine:
                             self.show_hud("Healed!")
                             self.sounds.play_effect("heal")
                 elif self.menu_open and self.popup_shutdown.collidepoint(event.pos):
-                    # Save state and perform (or simulate) a shutdown
-                    try:
-                        self.pet.save()
-                    except Exception:
-                        pass
-                    self._perform_system_action("shutdown")
+                    # Request confirmation for shutdown
+                    self.pending_confirmation = {"system": True, "action": "shutdown"}
+                    self.show_hud("Confirm shutdown?")
                 elif self.menu_open and self.popup_restart.collidepoint(event.pos):
-                    try:
-                        self.pet.save()
-                    except Exception:
-                        pass
-                    self._perform_system_action("restart")
+                    # Request confirmation for restart
+                    self.pending_confirmation = {"system": True, "action": "restart"}
+                    self.show_hud("Confirm restart?")
                 elif self.menu_open and hasattr(self, 'btn_quit') and self.btn_quit.collidepoint(event.pos):
                     return False
 
@@ -1217,6 +1232,15 @@ class GameEngine:
             self.screen.blit(self.small_font.render("Shutdown", True, COLOR_TEXT), (self.popup_shutdown.x + 6, self.popup_shutdown.y + 10))
             pygame.draw.rect(self.screen, (200, 120, 60), self.popup_restart, border_radius=6)
             self.screen.blit(self.small_font.render("Restart", True, COLOR_TEXT), (self.popup_restart.x + 10, self.popup_restart.y + 10))
+            # If a system confirmation is pending, show Yes/No buttons in the menu
+            if self.pending_confirmation and self.pending_confirmation.get("system"):
+                yes = pygame.Rect(menu_rect.x + menu_rect.width - 92, menu_rect.y + menu_rect.height - 30, 40, 24)
+                no = pygame.Rect(menu_rect.x + menu_rect.width - 44, menu_rect.y + menu_rect.height - 30, 40, 24)
+                self._system_confirmation_rects = (yes, no)
+                pygame.draw.rect(self.screen, (50, 200, 50), yes, border_radius=6)
+                pygame.draw.rect(self.screen, (200, 50, 50), no, border_radius=6)
+                self.screen.blit(self.small_font.render("Yes", True, COLOR_TEXT), (yes.x+8, yes.y+4))
+                self.screen.blit(self.small_font.render("No", True, COLOR_TEXT), (no.x+10, no.y+4))
 
         # Draw expanded stat if any (animated)
         for s in self.stat_icons:
