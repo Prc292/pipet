@@ -432,9 +432,6 @@ class GameEngine:
         # Menu button (top-right) toggles a popup (kept empty for now)
         self.btn_menu = pygame.Rect(430, 10, 40, 28)
         self.menu_open = False
-        # Popup button rects (hidden until menu_open)
-        self.popup_clean = pygame.Rect(140, 220, 100, 50)
-        self.popup_med = pygame.Rect(260, 220, 100, 50)
         # System control buttons in menu (shutdown / restart)
         self.popup_shutdown = pygame.Rect(140, 280, 100, 40)
         self.popup_restart = pygame.Rect(260, 280, 100, 40)
@@ -1080,20 +1077,20 @@ class GameEngine:
                         self.show_hud("Cancelled")
                         handled = True
                         break
-                elif self.menu_open and self.popup_clean.collidepoint(event.pos):
-                    old = self.pet.cleanliness
-                    if self.pet.is_alive:
-                        self.pet.clean()
-                        if self.pet.cleanliness > old:
-                            self.show_hud("Cleaned!")
-                            self.sounds.play_effect("clean")
-                elif self.menu_open and self.popup_med.collidepoint(event.pos):
-                    old = self.pet.health
-                    if self.pet.is_alive:
-                        self.pet.give_medicine()
-                        if self.pet.health > old:
-                            self.show_hud("Healed!")
-                            self.sounds.play_effect("heal")
+                # elif self.menu_open and self.popup_clean.collidepoint(event.pos):
+                #     old = self.pet.cleanliness
+                #     if self.pet.is_alive:
+                #         self.pet.clean()
+                #         if self.pet.cleanliness > old:
+                #             self.show_hud("Cleaned!")
+                #             self.sounds.play_effect("clean")
+                # elif self.menu_open and self.popup_med.collidepoint(event.pos):
+                #     old = self.pet.health
+                #     if self.pet.is_alive:
+                #         self.pet.give_medicine()
+                #         if self.pet.health > old:
+                #             self.show_hud("Healed!")
+                #             self.sounds.play_effect("heal")
                 elif self.menu_open and self.popup_shutdown.collidepoint(event.pos):
                     # Request confirmation for shutdown
                     self.pending_confirmation = {"system": True, "action": "shutdown"}
@@ -1232,15 +1229,15 @@ class GameEngine:
             quick_y = menu_rect.y + 40
             system_y = menu_rect.y + 80
             # Position popup rects relative to menu
-            self.popup_clean.topleft = (menu_rect.x + 12, quick_y)
-            self.popup_med.topleft = (menu_rect.x + 140, quick_y)
+            # self.popup_clean.topleft = (menu_rect.x + 12, quick_y)
+            # self.popup_med.topleft = (menu_rect.x + 140, quick_y)
             self.popup_shutdown.topleft = (menu_rect.x + 12, system_y)
             self.popup_restart.topleft = (menu_rect.x + 140, system_y)
-            # Draw popup quick-actions
-            pygame.draw.rect(self.screen, (80,80,80), self.popup_clean, border_radius=6)
-            self.screen.blit(self.small_font.render("Clean", True, COLOR_TEXT), (self.popup_clean.x + 10, self.popup_clean.y + 12))
-            pygame.draw.rect(self.screen, (80,80,80), self.popup_med, border_radius=6)
-            self.screen.blit(self.small_font.render("Med", True, COLOR_TEXT), (self.popup_med.x + 20, self.popup_med.y + 12))
+            # Draw popup quick-actions (Clean/Med) -- removed
+            # pygame.draw.rect(self.screen, (80,80,80), self.popup_clean, border_radius=6)
+            # self.screen.blit(self.small_font.render("Clean", True, COLOR_TEXT), (self.popup_clean.x + 10, self.popup_clean.y + 12))
+            # pygame.draw.rect(self.screen, (80,80,80), self.popup_med, border_radius=6)
+            # self.screen.blit(self.small_font.render("Med", True, COLOR_TEXT), (self.popup_med.x + 20, self.popup_med.y + 12))
             # System buttons
             pygame.draw.rect(self.screen, (200, 80, 60), self.popup_shutdown, border_radius=6)
             self.screen.blit(self.small_font.render("Shutdown", True, COLOR_TEXT), (self.popup_shutdown.x + 6, self.popup_shutdown.y + 10))
