@@ -161,7 +161,7 @@ class GameEngine:
                             self.pet.energy = min(80, self.pet.energy + 5)
                         self.pet.feed()
                     elif self.btn_play.collidepoint(event.pos): self.pet.play()
-                    elif self.btn_sleep.collidepoint(event.pos):
+                    elif self.btn_sleep.collidepoint(event.pos) and self.pet.energy < 100:
                         self.pet.energy = min(100, self.pet.energy + 30)
                         self.pet.hunger = min(100.0, self.pet.hunger + 5.0)  # small fullness decrease
                     elif self.btn_quit.collidepoint(event.pos): running = False
