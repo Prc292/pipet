@@ -51,8 +51,12 @@ class Pet:
         self.happiness = max(0.0, self.happiness - (6.0 * (elapsed / 3600)))
         self.energy = max(0.0, self.energy - (4.0 * (elapsed / 3600)))
 
+        # Health decay if neglected
         if self.hunger > 80 or self.energy < 20:
             self.health = max(0.0, self.health - (10.0 * (elapsed / 3600)))
+        # Health regeneration if well cared for
+        elif self.hunger < 70 and self.energy > 50 and self.health < 100:
+            self.health = min(100.0, self.health + (5.0 * (elapsed / 3600)))
         
         if self.health <= 0: self.is_alive = False
 
