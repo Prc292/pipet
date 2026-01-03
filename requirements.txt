@@ -1,1 +1,4 @@
+# Mouse cursor is now hidden via pygame.mouse.set_visible(False)
+# For pygame X11 support (system package, not pip):
+# sudo apt-get install x11-xserver-utils xorg
 pygame==2.6.1
