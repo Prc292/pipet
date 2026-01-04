@@ -40,6 +40,24 @@ class PetStats:
         current = getattr(self, stat)
         setattr(self, stat, self.clamp(current + amount))
 
+    def clamp(self, value: float):
+        return max(0.0, min(100.0, value))
+
+    def tick(self, dt: float):
+        """
+        Heartbeat logic using delta time (seconds).
+        """
+        # Decay rates per second
+        self.hunger = self.clamp(self.hunger + (8.0 / 3600.0) * dt)
+        self.happiness = self.clamp(self.happiness - (6.0 / 3600.0) * dt)
+        self.energy = self.clamp(self.energy - (4.0 / 3600.0) * dt)
+
+        # Health logic
+        if self.hunger > 80 or self.energy < 20:
+            self.health = self.clamp(self.health - (10.0 / 3600.0) * dt)
+        elif self.hunger < 70 and self.energy > 50:
+            self.health = self.clamp(self.health + (5.0 / 3600.0) * dt)
+
 class Pet:
     def __init__(self):
         self.stats = PetStats()
@@ -50,27 +68,21 @@ class Pet:
         self.state = "IDLE"
 
     def update(self):
-        if not self.is_alive: return
+        if not self.is_alive:
+            return
+
         now = time.time()
-        elapsed = now - self.last_update
+        dt = now - self.last_update
         self.last_update = now
 
         if self.life_stage == "EGG":
-            if now - self.birth_time > 30: self.life_stage = "BABY"
-            return 
+            if now - self.birth_time > 30:
+                self.life_stage = "BABY"
+            return
 
-        # Passive Decay Logic (Units per hour)
-        self.stats.add("hunger", 8.0 * (elapsed / 3600))
-        self.stats.add("happiness", -6.0 * (elapsed / 3600))
-        self.stats.add("energy", -4.0 * (elapsed / 3600))
+        # Delegate time-based logic to PetStats
+        self.stats.tick(dt)
 
-        # Health decay if neglected
-        if self.stats.hunger > 80 or self.stats.energy < 20:
-            self.stats.add("health", -10.0 * (elapsed / 3600))
-        # Health regeneration if well cared for
-        elif self.stats.hunger < 70 and self.stats.energy > 50:
-            self.stats.add("health", 5.0 * (elapsed / 3600))
-        
         if self.stats.health <= 0:
             self.is_alive = False
 
