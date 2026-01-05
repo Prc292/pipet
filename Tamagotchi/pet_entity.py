@@ -3,11 +3,12 @@ import math
 import pygame
 from models import PetState, PetStats
 from constants import *
+from database import DatabaseManager
 
 class Pet:
     """Orchestrates FSM transitions and procedural animations.[4, 5]"""
-    def __init__(self, db_manager):
-        self.db = db_manager
+    def __init__(self):
+        self.db = DatabaseManager(DB_FILE)
         self.stats = PetStats()
         self.is_alive = True
         self.birth_time = time.time()
@@ -87,11 +88,25 @@ class Pet:
 
     def load(self):
         row = self.db.load_pet()
-        if row:
-            self.stats.hunger, self.stats.happiness = row[6], row[1]
-            self.stats.energy, self.stats.health = row[7], row[8]
-            self.is_alive, self.birth_time, self.life_stage = bool(row[9]), row[10], row[11]
-            self.state = PetState[row[12]]
-            offline_dt = time.time() - row[13]
-            self.stats.tick(offline_dt, self.state)
-            self.last_update = time.time()
+        if not row:
+            return
+
+        # DB schema:
+        # 0:id 1:hunger 2:happiness 3:energy 4:health
+        # 5:is_alive 6:birth_time 7:last_update 8:life_stage 9:state
+
+        self.stats.hunger = row[1]
+        self.stats.happiness = row[2]
+        self.stats.energy = row[3]
+        self.stats.health = row[4]
+
+        self.is_alive = bool(row[5])
+        self.birth_time = row[6]
+        self.last_update = row[7]
+        self.life_stage = row[8]
+        self.state = PetState[row[9]]
+
+        # Offline progress catch-up
+        offline_dt = time.time() - row[7]
+        self.stats.tick(offline_dt, self.state)
+        self.last_update = time.time()
