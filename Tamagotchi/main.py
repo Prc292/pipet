@@ -11,7 +11,7 @@ class GameEngine:
     """Orchestrates the MVC relationship."""
     def __init__(self):
         pygame.init()
-        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SCALED | pygame.RESIZABLE)
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SCALED | pygame.RESIZABLE | pygame.FULLSCREEN)
         
         # --- FIX: Separated assignment for robustness ---
         self.clock = pygame.time.Clock()
