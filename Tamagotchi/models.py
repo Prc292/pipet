@@ -47,7 +47,7 @@ class PetStats:
     energy: float = 100.0
     health: float = 100.0
     discipline: float = 50.0
-    care_mistakes: int = 0 # This attribute is confirmed to exist now
+    care_mistakes: int = 0
 
     def clamp(self, value):
         return max(0.0, min(100.0, value))
@@ -55,33 +55,35 @@ class PetStats:
     def tick(self, dt: float, current_state: PetState):
         """Standardized decay logic for real-time passage."""
         
-        # --- Decay Rates (per hour) ---
-        FULL_DECAY = 8.0
-        HAPPY_DECAY = 10.0
-        ENERGY_DECAY = 15.0
-        ENERGY_REGEN = 30.0
+        # --- Decay Rates (per second) ---
+        FULL_DECAY_SEC = 8.0 / 3600.0   # 8 units per hour
+        HAPPY_DECAY_SEC = 10.0 / 3600.0
+        ENERGY_DECAY_SEC = 15.0 / 3600.0
+        ENERGY_REGEN_SEC = 30.0 / 3600.0
+        HEALTH_DECAY_SEC = 10.0 / 3600.0
+        HEALTH_REGEN_SEC = 2.0 / 3600.0
 
         # Fullness decay (slower while sleeping)
-        full_rate = FULL_DECAY if current_state!= PetState.SLEEPING else 2.0
-        self.fullness = self.clamp(self.fullness - (full_rate / 3600.0) * dt)
+        full_rate = FULL_DECAY_SEC if current_state!= PetState.SLEEPING else 2.0 / 3600.0
+        self.fullness = self.clamp(self.fullness - full_rate * dt)
         
         # Happiness decay (faster if hungry or sick)
-        happy_rate = HAPPY_DECAY
-        if self.fullness < 20.0: happy_rate += 5.0
-        if current_state == PetState.SICK: happy_rate += 10.0
-        self.happiness = self.clamp(self.happiness - (happy_rate / 3600.0) * dt)
+        happy_rate = HAPPY_DECAY_SEC
+        if self.fullness < 20.0: happy_rate += 5.0 / 3600.0
+        if current_state == PetState.SICK: happy_rate += 10.0 / 3600.0
+        self.happiness = self.clamp(self.happiness - happy_rate * dt)
         
         # Energy recovery vs drain
         if current_state == PetState.SLEEPING:
-            self.energy = self.clamp(self.energy + (ENERGY_REGEN / 3600.0) * dt)
+            self.energy = self.clamp(self.energy + ENERGY_REGEN_SEC * dt)
         elif current_state == PetState.PLAYING or current_state == PetState.TRAINING:
-            self.energy = self.clamp(self.energy - (ENERGY_DECAY * 2 / 3600.0) * dt) # Double drain
+            self.energy = self.clamp(self.energy - ENERGY_DECAY_SEC * 2 * dt) # Double drain
         else:
-            self.energy = self.clamp(self.energy - (ENERGY_DECAY / 3600.0) * dt)
+            self.energy = self.clamp(self.energy - ENERGY_DECAY_SEC * dt)
 
         # Health decay
         if self.fullness == 0 or self.energy == 0 or current_state == PetState.SICK:
-            self.health = self.clamp(self.health - (10.0 / 3600.0) * dt)
+            self.health = self.clamp(self.health - HEALTH_DECAY_SEC * dt)
         elif self.health < 100.0:
             # Slow recovery if well cared for
-            self.health = self.clamp(self.health + (2.0 / 3600.0) * dt)
+            self.health = self.clamp(self.health + HEALTH_REGEN_SEC * dt)

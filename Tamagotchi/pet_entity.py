@@ -3,114 +3,154 @@ import math
 import pygame
 import random
 from models import PetState, PetStats
-from constants import COLOR_PET_BODY, COLOR_PET_EYES
+from constants import COLOR_PET_BODY, COLOR_PET_EYES, COLOR_HEALTH, COLOR_TEXT, COLOR_SICK, TIME_SCALE_FACTOR 
 
-# Assuming DatabaseManager is imported/available, but we rely on a passed db object
+# --- RAPID TESTING EVOLUTION TIMES ---
+TIME_TO_BABY_SEC = 60.0
+TIME_TO_CHILD_SEC = 120.0
 
 class Pet:
-    def __init__(self, db_manager, name="Pet"):
+    # ------------------------------------------------------------------
+    # FIX #1: Correct __init__ signature (fixes "Pet() takes no arguments")
+    # ------------------------------------------------------------------
+    def __init__(self, db_manager, name="Pet"): 
         self.name = name
         self.db = db_manager # DatabaseManager instance
-        self.stats = PetStats() # Fix: Use PetStats dataclass
+        self.stats = PetStats() 
         self.state = PetState.EGG
-        self.life_stage = "EGG" # For display
+        self.life_stage = "EGG" 
         self.is_alive = True
-        self.birth_time = time.time()
+        self.birth_time = time.time() 
         self.last_update = time.time()
 
         # Animation State
         self.idle_bob_offset = 0.0
         self.idle_bob_timer = 0.0
+        self.play_bounce_timer = 0.0
         self.eye_timer = 0.0
         self.eye_blink_duration = 0.1
         self.eyes_open = True
+        
+        # Action feedback
         self.action_timer = 0.0
-        self.action_duration = 3.0 # Duration for EATING, PLAYING, etc.
+        self.action_duration = 3.0
+        self.action_feedback_timer = 0.0
+        self.action_feedback_text = ""
 
     def transition_to(self, new_state: PetState):
-        """Fix: Implements the missing state transition method."""
         if self.state != new_state:
             print(f"Pet transitioning from {self.state.name} to {new_state.name}")
             self.state = new_state
-            self.action_timer = 0.0 # Reset timer on new action
+            self.action_timer = 0.0 
 
     def handle_action_complete(self, action_name: str):
-        """Logic for when an action (FEED, PLAY, etc.) is complete."""
+        self.action_feedback_timer = 2.0 
+        
         if self.state == PetState.EATING:
             self.stats.fullness = self.stats.clamp(self.stats.fullness + 20)
             self.stats.health = self.stats.clamp(self.stats.health + 5)
+            self.action_feedback_text = "YUMMY!"
         elif self.state == PetState.PLAYING:
             self.stats.happiness = self.stats.clamp(self.stats.happiness + 30)
             self.stats.energy = self.stats.clamp(self.stats.energy - 10)
+            self.action_feedback_text = "WOOHOO!"
         elif self.state == PetState.TRAINING:
             self.stats.discipline = self.stats.clamp(self.stats.discipline + 15)
             self.stats.happiness = self.stats.clamp(self.stats.happiness - 5)
+            self.action_feedback_text = "SMART!"
         
         self.transition_to(PetState.IDLE)
+        
+    def heal(self):
+        if self.state == PetState.SICK:
+            if self.stats.discipline >= 10:
+                self.stats.health = self.stats.clamp(self.stats.health + 20)
+                self.stats.discipline = self.stats.clamp(self.stats.discipline - 10)
+                self.action_feedback_text = "FEELING BETTER!"
+                self.action_feedback_timer = 2.0
+                self.transition_to(PetState.IDLE)
+            else:
+                self.action_feedback_text = "NEED DISCIPLINE TO HEAL!"
+                self.action_feedback_timer = 2.0
 
 
     def update(self, dt):
         """Handles real-time stat decay, action timers, and evolution checks."""
         
-        # 1. Update action timer
+        scaled_dt = dt * TIME_SCALE_FACTOR
+        
+        if not self.is_alive and self.state == PetState.DEAD:
+            return
+
+        # 1. Update action timer (Use real dt for fixed action duration)
         if self.state in [PetState.EATING, PetState.PLAYING, PetState.TRAINING]:
-            self.action_timer += dt
+            self.action_timer += dt 
             if self.action_timer >= self.action_duration:
                 self.handle_action_complete(self.state.name)
         
-        # 2. Update Stats
-        self.stats.tick(dt, self.state)
+        # 2. Update Stats (Use scaled_dt for accelerated decay)
+        self.stats.tick(scaled_dt, self.state)
         
-        # 3. Handle Animation Timers (Bobbing and Blinking)
-        # Smooth bobbing motion
-        self.idle_bob_timer = (self.idle_bob_timer + dt) % (math.pi * 2) # Cycle every ~6.28 seconds
-        self.idle_bob_offset = math.sin(self.idle_bob_timer * 3) * 2 # Moves pet up/down 2 pixels slowly
+        # 3. Handle Animation Timers and Feedback (Use real dt for smooth visuals)
+        self.idle_bob_timer = (self.idle_bob_timer + dt) % (math.pi * 2) 
+        self.idle_bob_offset = math.sin(self.idle_bob_timer * 3) * 2 
+        
+        if self.action_feedback_timer > 0:
+            self.action_feedback_timer -= dt
 
-        # Blinking logic
+        # Blinking logic (Use real dt)
         if self.state != PetState.SLEEPING:
             self.eye_timer += dt
             if self.eyes_open:
-                # Blink approx every 3-5 seconds
                 if self.eye_timer > 3.0 + (random.random() * 2.0): 
                     self.eyes_open = False
                     self.eye_timer = 0.0
             else:
-                # Keep eyes closed for a short duration
                 if self.eye_timer > self.eye_blink_duration:
                     self.eyes_open = True
                     self.eye_timer = 0.0
 
-        # 4. State Checks and Evolution (Simplified)
-        if self.state != PetState.DEAD:
-            if self.stats.fullness == 0.0 or self.stats.health == 0.0:
-                self.transition_to(PetState.SICK) # Or DEAD, depending on rules
-                self.stats.care_mistakes += 1
+        # 4. State Checks and Evolution
+        
+        # Death check is prioritized
+        if self.stats.health == 0.0 and self.is_alive:
+            self.is_alive = False
+            self.transition_to(PetState.DEAD)
+            self.save() 
+            return
             
-            # Simplified Life Stage check (based on total time or discipline)
-            if self.life_stage == "EGG" and time.time() - self.birth_time > 10: # Hatch after 10s
-                self.life_stage = "BABY"
-                self.transition_to(PetState.BABY)
-            elif self.life_stage == "BABY" and time.time() - self.birth_time > 60: # Grow after 60s
-                self.life_stage = "CHILD"
-                self.transition_to(PetState.IDLE) # Child/Adult maps to IDLE
-
+        # Sickness check
+        if self.stats.fullness == 0.0 or self.stats.health < 10.0:
+            if self.state != PetState.SICK and self.state != PetState.DEAD:
+                self.transition_to(PetState.SICK)
+                self.stats.care_mistakes += 1
+        elif self.state == PetState.SICK and self.stats.health > 50:
+             self.transition_to(PetState.IDLE) 
+            
+        # Life Stage check (based on total accumulated game time)
+        total_game_time = (time.time() - self.birth_time) * TIME_SCALE_FACTOR
+        
+        if self.life_stage == "EGG" and total_game_time > TIME_TO_BABY_SEC:
+            self.life_stage = "BABY"
+            self.transition_to(PetState.IDLE)
+        elif self.life_stage == "BABY" and total_game_time > TIME_TO_CHILD_SEC:
+            self.life_stage = "CHILD"
+            self.transition_to(PetState.IDLE)
 
         # 5. Save state every few seconds
-        if time.time() - self.last_update > 5: # Save every 5 seconds
+        if time.time() - self.last_update > 5: 
             self.save()
             self.last_update = time.time()
 
-
+    # ------------------------------------------------------------------
+    # FIX #2: load() method (fixes "AttributeError: 'Pet' object has no attribute 'load'")
+    # ------------------------------------------------------------------
     def load(self):
         """Fetches data from the database and initializes pet state."""
         try:
-            row = self.db.load_pet() # Get the last saved row
+            row = self.db.load_pet() 
 
             if row:
-                # Data indices based on DatabaseManager.create_tables schema:
-                # (1:fullness, 2:happiness, 3:energy, 4:health, 5:discipline, 6:care_mistakes, 
-                # 7:is_alive, 8:birth_time, 9:last_update, 10:life_stage, 11:state)
-                
                 # Update PetStats
                 self.stats.fullness = row[1]
                 self.stats.happiness = row[2]
@@ -123,20 +163,18 @@ class Pet:
                 self.is_alive = bool(row[7])
                 self.birth_time = row[8]
                 self.last_update = row[9]
-                self.life_stage = row[10] # e.g., "CHILD"
-                
-                # Fix: Use PetState() constructor which uses the _missing_ logic
-                # Index 11 is the 'state' column
+                self.life_stage = row[10] 
                 self.state = PetState(row[11]) 
+                if len(row) > 12: 
+                    self.name = row[12] 
             
-            # Adjust stats based on time passed since last save
-            time_passed = time.time() - self.last_update
-            # Simulate decay that occurred while the game was shut down
-            self.stats.tick(time_passed, self.state) 
+            # Adjust stats based on time passed since last save (scaled time)
+            time_passed_real = time.time() - self.last_update
+            time_passed_game = time_passed_real * TIME_SCALE_FACTOR
+            self.stats.tick(time_passed_game, self.state) 
 
         except Exception as e:
             print(f"Loading failed, starting fresh (Error: {e})")
-            # If loading fails, start a new pet
             self.stats = PetStats() 
             self.state = PetState.EGG
             self.life_stage = "EGG"
@@ -154,59 +192,143 @@ class Pet:
             'care_mistakes': self.stats.care_mistakes,
             'is_alive': self.is_alive,
             'birth_time': self.birth_time,
-            # last_update is set in DatabaseManager.save_pet
             'life_stage': self.life_stage,
-            'state': self.state.name
+            'state': self.state.name,
+            'name': self.name
         }
         self.db.save_pet(pet_data)
-
-    def draw(self, surface, cx, cy):
-        """Fix: Implements the missing draw method with simple animations."""
+    
+    # --- Drawing Logic (Retained animation updates) ---
+    def _draw_body(self, surface, cx, cy, radius, color, scale_x=1.0, scale_y=1.0):
+        """Draws a base body shape (ellipse) and simple limbs with scaling applied."""
         
-        # --- Pet Drawing Parameters (Relative to center) ---
-        body_w, body_h = 60, 50
-        eye_w, eye_h = 8, 10
-        mouth_w, mouth_h = 10, 5
+        radius_x = radius * scale_x
+        radius_y = radius * scale_y
         
-        # Apply idle bob offset
-        cy = cy + self.idle_bob_offset
-
-        # --- Draw Body ---
+        body_h = radius_y * 1.6
+        body_w = radius_x * 1.8
+        
+        cy = cy + self.idle_bob_offset 
+        
         body_rect = pygame.Rect(cx - body_w // 2, cy - body_h // 2, body_w, body_h)
-        # Use a smooth circle/oval for the body
-        pygame.draw.circle(surface, COLOR_PET_BODY, (cx, cy), body_w // 2)
+        pygame.draw.ellipse(surface, color, body_rect)
+        
+        # Feet/Paws
+        paw_w, paw_h = radius_x // 3, radius_y // 5
+        pygame.draw.ellipse(surface, color, (cx - radius_x + paw_w, cy + body_h // 2 - paw_h, paw_w, paw_h))
+        pygame.draw.ellipse(surface, color, (cx + radius_x - (2*paw_w), cy + body_h // 2 - paw_h, paw_w, paw_h))
 
-        # Draw Feet/Paws
-        paw_w, paw_h = 10, 5
-        pygame.draw.ellipse(surface, COLOR_PET_BODY, (cx - 20, cy + body_h // 2 - paw_h, paw_w, paw_h))
-        pygame.draw.ellipse(surface, COLOR_PET_BODY, (cx + 10, cy + body_h // 2 - paw_h, paw_w, paw_h))
+        return cx, cy, body_w, body_h
+
+    def draw(self, surface, cx, cy, font):
+        """Draws the pet, applying visual modifications based on state and health."""
+        
+        # 1. Determine base size and color
+        radius = 15
+        if self.life_stage == "EGG":
+            radius = 20
+        elif self.life_stage == "BABY":
+            radius = 30
+        elif self.life_stage == "CHILD":
+            radius = 40
+            
+        base_color = COLOR_PET_BODY
+        # Dynamic color shift for low health
+        if self.stats.health < 50:
+            ratio = 1.0 - (self.stats.health / 50.0) 
+            r = int(base_color[0] + (100 - base_color[0]) * ratio)
+            g = int(base_color[1] + (100 - base_color[1]) * ratio)
+            b = int(base_color[2] + (100 - base_color[2]) * ratio)
+            pet_color = (r, g, b)
+        else:
+            pet_color = base_color
+
+        
+        # State-specific drawing setup
+        scale_x, scale_y = 1.0, 1.0
+        y_offset_action = 0 
+        
+        if self.state == PetState.EATING:
+            # Shrink and darken the color slightly when eating
+            scale_x, scale_y = 0.9, 0.9
+            pet_color = (max(0, pet_color[0]-20), max(0, pet_color[1]-20), max(0, pet_color[2]-20))
+            
+        elif self.state == PetState.PLAYING:
+            # Apply a rapid, exaggerated bounce for playing
+            self.play_bounce_timer = (self.play_bounce_timer + time.time() * 20) % (math.pi * 2)
+            y_offset_action = math.sin(self.play_bounce_timer) * 5
+            # Draw a brighter color when happy/playing
+            pet_color = (min(255, pet_color[0]+30), min(255, pet_color[1]+30), min(255, pet_color[2]+30))
+            
+        # --- Handle DEAD/EGG State (Early Exit) ---
+        if self.state == PetState.DEAD:
+             dead_color = (80, 80, 80)
+             pygame.draw.ellipse(surface, dead_color, (cx - radius, cy - radius // 2 + 10, radius * 2, radius))
+             dead_text = font.render("REST IN PEACE", True, (255, 0, 0))
+             surface.blit(dead_text, dead_text.get_rect(center=(cx, cy)))
+             return
+        
+        if self.life_stage == "EGG":
+            pygame.draw.ellipse(surface, (245, 245, 210), (cx - radius, cy - radius * 1.5, radius * 2, radius * 3))
+            
+            time_elapsed_game = (time.time() - self.birth_time) * TIME_SCALE_FACTOR
+            time_left = max(0, int(TIME_TO_BABY_SEC - time_elapsed_game))
+            
+            egg_text = font.render(f"EGG ({time_left}s)", True, COLOR_TEXT)
+            surface.blit(egg_text, egg_text.get_rect(center=(cx, cy)))
+            return
+            
+        # --- Draw Active Pet Body ---
+        cx, cy = cx, cy + y_offset_action 
+        cx, cy_body_center, body_w, body_h = self._draw_body(surface, cx, cy, radius, pet_color, scale_x, scale_y)
+        
         
         # --- Draw Face ---
+        eye_y = cy_body_center - radius * scale_y // 3
+        eye_w, eye_h = radius * scale_x // 4, radius * scale_y // 3
         
         # Eyes
         if self.state == PetState.SLEEPING:
-            # Draw closed eyes
-            pygame.draw.line(surface, COLOR_PET_EYES, (cx - 15, cy - 10), (cx - 5, cy - 10), 2)
-            pygame.draw.line(surface, COLOR_PET_EYES, (cx + 5, cy - 10), (cx + 15, cy - 10), 2)
+            zzz = font.render("Zzz", True, COLOR_TEXT)
+            surface.blit(zzz, zzz.get_rect(center=(cx + radius + 5, cy_body_center - radius)))
+            pygame.draw.line(surface, COLOR_PET_EYES, (cx - eye_w, eye_y), (cx - eye_w // 2, eye_y), 2)
+            pygame.draw.line(surface, COLOR_PET_EYES, (cx + eye_w // 2, eye_y), (cx + eye_w, eye_y), 2)
         elif self.eyes_open:
-            # Open eyes
-            pygame.draw.ellipse(surface, COLOR_PET_EYES, (cx - 15, cy - 15, eye_w, eye_h))
-            pygame.draw.ellipse(surface, COLOR_PET_EYES, (cx + 5, cy - 15, eye_w, eye_h))
+            pygame.draw.ellipse(surface, COLOR_PET_EYES, (cx - eye_w * 1.5, eye_y - eye_h // 2, eye_w, eye_h))
+            pygame.draw.ellipse(surface, COLOR_PET_EYES, (cx + eye_w * 0.5, eye_y - eye_h // 2, eye_w, eye_h))
         else:
-            # Blinking eyes (a line)
-            pygame.draw.line(surface, COLOR_PET_EYES, (cx - 15, cy - 10), (cx - 5, cy - 10), 2)
-            pygame.draw.line(surface, COLOR_PET_EYES, (cx + 5, cy - 10), (cx + 15, cy - 10), 2)
+            pygame.draw.line(surface, COLOR_PET_EYES, (cx - eye_w * 1.5, eye_y), (cx - eye_w * 0.5, eye_y), 2)
+            pygame.draw.line(surface, COLOR_PET_EYES, (cx + eye_w * 0.5, eye_y), (cx + eye_w * 1.5, eye_y), 2)
         
-        # Mouth (simple rectangle)
-        mouth_rect = pygame.Rect(cx - mouth_w // 2, cy + 5, mouth_w, mouth_h)
+        # Mouth
+        mouth_w, mouth_h = radius * scale_x // 4, radius * scale_y // 8
+        mouth_rect = pygame.Rect(cx - mouth_w // 2, cy_body_center + radius * scale_y // 3, mouth_w, mouth_h)
         pygame.draw.rect(surface, COLOR_PET_EYES, mouth_rect, border_radius=1)
 
         # --- State Visuals ---
         if self.state == PetState.EATING:
-            # Food item above mouth
-            pygame.draw.circle(surface, (100, 50, 0), (cx + 10, cy), 5) 
+            # Food item moving towards the pet (animation)
+            food_x_start = cx + radius + 15
+            food_x_end = cx + mouth_w + 5
+            food_x = food_x_start - (food_x_start - food_x_end) * (self.action_timer / self.action_duration)
+            pygame.draw.circle(surface, (255, 0, 0), (int(food_x), cy_body_center + radius * scale_y // 3), 3) 
+        
+        if self.state == PetState.PLAYING:
+            # Bouncing hearts (animation)
+            heart_font = pygame.font.Font(None, 20)
+            heart_sym = heart_font.render("<3", True, (255, 100, 150))
+            
+            heart_y_offset = math.sin(self.play_bounce_timer * 0.5) * 5 
+
+            surface.blit(heart_sym, heart_sym.get_rect(center=(cx - radius * 1.2, cy_body_center - radius * 1.5 + heart_y_offset)))
+            surface.blit(heart_sym, heart_sym.get_rect(center=(cx + radius * 1.2, cy_body_center - radius * 1.5 - heart_y_offset)))
         
         if self.state == PetState.SICK:
-            # Draw a sick icon (cross)
-            pygame.draw.line(surface, (255, 0, 0), (cx - 20, cy - 30), (cx - 10, cy - 40), 3)
-            pygame.draw.line(surface, (255, 0, 0), (cx - 10, cy - 30), (cx - 20, cy - 40), 3)
+            skull_font = pygame.font.Font(None, 40)
+            sick_sym = skull_font.render("X", True, COLOR_SICK)
+            surface.blit(sick_sym, sick_sym.get_rect(center=(cx, cy_body_center - body_h * 0.75)))
+
+        # --- Action Feedback Overlay ---
+        if self.action_feedback_timer > 0:
+            feedback_surf = font.render(self.action_feedback_text, True, COLOR_HEALTH)
+            surface.blit(feedback_surf, feedback_surf.get_rect(center=(cx, cy_body_center - body_h - 10)))
