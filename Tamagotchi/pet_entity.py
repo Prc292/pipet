@@ -142,8 +142,7 @@ class Pet:
             self.save()
             self.last_update = time.time()
 
-    # ------------------------------------------------------------------
-    # FIX #2: load() method (fixes "AttributeError: 'Pet' object has no attribute 'load'")
+   
     # ------------------------------------------------------------------
     def load(self):
         """Fetches data from the database and initializes pet state."""
@@ -255,8 +254,8 @@ class Pet:
             
         elif self.state == PetState.PLAYING:
             # Apply a rapid, exaggerated bounce for playing
-            self.play_bounce_timer = (self.play_bounce_timer + time.time() * 20) % (math.pi * 2)
-            y_offset_action = math.sin(self.play_bounce_timer) * 5
+            self.play_bounce_timer = (self.play_bounce_timer + time.time() * 10) % (math.pi * 2)
+            y_offset_action = math.sin(self.play_bounce_timer) * 1
             # Draw a brighter color when happy/playing
             pet_color = (min(255, pet_color[0]+30), min(255, pet_color[1]+30), min(255, pet_color[2]+30))
             
