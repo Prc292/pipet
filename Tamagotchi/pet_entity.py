@@ -14,7 +14,7 @@ class Pet:
         self.life_stage = "EGG"
         self.state = PetState.EGG
         self.state_timer = 0.0 
-        self.mistake_counter_timer = 0.0
+        self.mistake_counter_timer = 0.0 
 
     def transition_to(self, new_state: PetState):
         if self.state == new_state: return
@@ -28,7 +28,6 @@ class Pet:
         self.last_update = now
         self.state_timer += 0.05 
 
-        # Branching Evolution based on care history
         if self.state == PetState.EGG and (now - self.birth_time > 15):
             self.life_stage = "BABY"
             self.transition_to(PetState.IDLE)
@@ -36,7 +35,6 @@ class Pet:
             self.life_stage = "ELITE-CHILD" if self.stats.care_mistakes == 0 else "NEEDY-CHILD"
             self.transition_to(PetState.IDLE)
 
-        # Care Mistake logic using low fullness [8]
         if self.stats.fullness < 10 or self.stats.energy < 10:
             self.mistake_counter_timer += dt
             if self.mistake_counter_timer > 30: 
@@ -95,8 +93,14 @@ class Pet:
             self.stats.fullness, self.stats.happiness = row[1], row[2]
             self.stats.energy, self.stats.health = row[3], row[4]
             self.stats.discipline, self.stats.care_mistakes = row[5], row[6]
-            self.is_alive, self.birth_time, self.life_stage = bool(row[7]), row[8], row[9]
+            self.is_alive, self.birth_time = bool(row[7]), row[8]
+            self.life_stage = row[9]
             self.state = PetState[row[10]]
-            offline_dt = time.time() - row[11]
+            # Offline Catch-up uses index 9 for the REAL timestamp
+            try:
+                last_time = float(row[11])
+            except (ValueError, TypeError):
+                last_time = time.time()
+            offline_dt = time.time() - last_time
             self.stats.tick(offline_dt, self.state)
             self.last_update = time.time()

@@ -13,7 +13,7 @@ class PetState(Enum):
 
 @dataclass
 class PetStats:
-    fullness: float = 50.0      # 100 = Full, 0 = Starving
+    fullness: float = 50.0
     happiness: float = 100.0
     energy: float = 100.0
     health: float = 100.0
@@ -24,10 +24,8 @@ class PetStats:
         return max(0.0, min(100.0, value))
 
     def tick(self, dt: float, current_state: PetState):
-        """Standardized decay logic where all stats move toward 0."""
-        # Fullness decays slower while sleeping
-        fullness_rate = 8.0 if current_state!= PetState.SLEEPING else 2.0
-        self.fullness = self.clamp(self.fullness - (fullness_rate / 3600.0) * dt)
+        full_rate = 8.0 if current_state!= PetState.SLEEPING else 2.0
+        self.fullness = self.clamp(self.fullness - (full_rate / 3600.0) * dt)
         
         if current_state == PetState.SLEEPING:
             self.energy = self.clamp(self.energy + (30.0 / 3600.0) * dt)
@@ -36,7 +34,6 @@ class PetStats:
 
         self.happiness = self.clamp(self.happiness - (6.0 / 3600.0) * dt)
 
-        # Health logic: decay if fullness or energy are near empty
         if self.fullness < 10 or self.energy < 10:
             self.health = self.clamp(self.health - (20.0 / 3600.0) * dt)
         elif self.fullness > 50:
