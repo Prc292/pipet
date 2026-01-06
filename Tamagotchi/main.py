@@ -7,6 +7,8 @@ from database import DatabaseManager
 from pet_entity import Pet
 import time
 
+
+
 class GameEngine:
     """Orchestrates the MVC relationship."""
     def __init__(self):

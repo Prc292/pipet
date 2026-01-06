@@ -40,5 +40,5 @@ echo "--- SETUP COMPLETE ---"
 echo "The game is installed in: ~/pocket-pi-pet"
 echo ""
 echo "TO RUN THE GAME:"
-echo "cd ~/pocket-pi-pet/Tamagotchi"
-echo "python3 main.py"
+cd ~/pocket-pi-pet/Tamagotchi
+python3 main.py
