@@ -35,10 +35,11 @@ class GameEngine:
         # --- Load Sounds (with placeholders) ---
         # NOTE: You must create these .wav files in the Tamagotchi folder!
         try:
-            self.sound_click = pygame.mixer.Sound("Tamagotchi/click.wav")
-            self.sound_eat = pygame.mixer.Sound("Tamagotchi/eat.wav")
-            self.sound_play = pygame.mixer.Sound("Tamagotchi/play.wav")
-            self.sound_heal = pygame.mixer.Sound("Tamagotchi/heal.wav")
+            base_path = os.path.dirname(__file__)
+            self.sound_click = pygame.mixer.Sound(os.path.join(base_path, "click.wav"))
+            self.sound_eat = pygame.mixer.Sound(os.path.join(base_path, "eat.wav"))
+            self.sound_play = pygame.mixer.Sound(os.path.join(base_path, "play.wav"))
+            self.sound_heal = pygame.mixer.Sound(os.path.join(base_path, "heal.wav"))
         except pygame.error as e:
             print(f"Warning: Could not load sound files. Game will be silent. Error: {e}")
             self.sound_click = None
