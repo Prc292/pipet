@@ -35,16 +35,24 @@ def bouncing_pet_game(screen, font):
     
     while running:
         # --- Event Handling ---
+        click_pos = None
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
                 return 0 # Return 0 if game is quit prematurely
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                mouse_x, mouse_y = event.pos
-                distance = ((mouse_x - pet_x)**2 + (mouse_y - pet_y)**2)**0.5
-                if distance <= pet_radius:
-                    pet_vy = bounce_strength
-                    score += 1
+
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                click_pos = event.pos
+            elif event.type == pygame.FINGERDOWN:
+                # Scale normalized touch coordinates to screen dimensions
+                win_w, win_h = screen.get_size()
+                click_pos = (int(event.x * win_w), int(event.y * win_h))
+
+        if click_pos:
+            distance = ((click_pos[0] - pet_x)**2 + (click_pos[1] - pet_y)**2)**0.5
+            if distance <= pet_radius:
+                pet_vy = bounce_strength
+                score += 1
 
         # --- Game Logic ---
         # Apply gravity
