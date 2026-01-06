@@ -8,21 +8,19 @@ This phase focuses on strengthening the existing game mechanics and making the c
 
 ### 1. Implement Branching Evolution
 *   **Description:** Modify the pet's evolution to be based on its stats and care, leading to different forms.
-*   **Status:** Pending
+*   **Status:** Completed
 *   **Details:**
     *   **Modify `models.py`:** Define new `PetState` enums for at least two evolution paths (e.g., `ROYAL_CHILD`, `WILD_CHILD`, `ROYAL_ADULT`, `WILD_ADULT`).
     *   **Modify `pet_entity.py`:** Update the evolution logic in the `update` method to check pet stats (e.g., `discipline > 75` or `happiness` levels) at the point of evolution to determine the path. Create or use placeholder visual assets for new forms.
 
 ### 2. Introduce a Simple Mini-Game
-*   **Description:** Replace the static "Play" button with an interactive mini-game.
-*   **Status:** Pending
+*   **Status:** Completed
 *   **Details:**
     *   **Create `minigames.py`:** Implement a basic game (e.g., clicking the pet to keep it bouncing). The game should return a score.
     *   **Modify `main.py`:** When "PLAY" is clicked, launch the mini-game. Increase pet's `happiness` based on the mini-game score.
 
 ### 3. Improve UI and Animations
-*   **Description:** Make the pet and UI more lively and provide better visual/auditory feedback.
-*   **Status:** Pending
+*   **Status:** Completed
 *   **Details:**
     *   **Modify `pet_entity.py`:** Add more animation frames for common states (e.g., "idle," "eating," "happy," "sad").
     *   **Modify `main.py`:**

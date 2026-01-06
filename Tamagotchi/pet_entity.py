@@ -138,13 +138,13 @@ class Pet:
             self.life_stage = PetState.CHILD
             self.transition_to(PetState.IDLE)
         elif self.life_stage == PetState.CHILD and total_game_time > TIME_TO_TEEN_SEC:
-            if self.stats.care_mistakes < 3:
+            if self.stats.care_mistakes < 3 and self.stats.discipline > 50:
                 self.life_stage = PetState.TEEN_GOOD
             else:
                 self.life_stage = PetState.TEEN_BAD
             self.transition_to(PetState.IDLE)
         elif self.life_stage in [PetState.TEEN_GOOD, PetState.TEEN_BAD] and total_game_time > TIME_TO_ADULT_SEC:
-            if self.stats.care_mistakes < 5:
+            if self.stats.care_mistakes < 5 and self.stats.happiness > 75:
                 self.life_stage = PetState.ADULT_GOOD
             else:
                 self.life_stage = PetState.ADULT_BAD
@@ -261,10 +261,15 @@ class Pet:
             pet_color = base_color
 
         
-        # State-specific drawing setup
+        # --- Animation & State-specific drawing setup ---
         scale_x, scale_y = 1.0, 1.0
         y_offset_action = 0 
         
+        if self.state == PetState.IDLE:
+            squash_factor = math.sin(self.idle_bob_timer * 3)
+            scale_x = 1.0 + squash_factor * 0.05
+            scale_y = 1.0 - squash_factor * 0.05
+
         if self.state == PetState.EATING:
             # Shrink and darken the color slightly when eating
             scale_x, scale_y = 0.9, 0.9
@@ -326,10 +331,28 @@ class Pet:
             pygame.draw.line(surface, COLOR_PET_EYES, (cx - eye_w * 1.5, eye_y), (cx - eye_w * 0.5, eye_y), 2)
             pygame.draw.line(surface, COLOR_PET_EYES, (cx + eye_w * 0.5, eye_y), (cx + eye_w * 1.5, eye_y), 2)
         
-        # Mouth
-        mouth_w, mouth_h = radius * scale_x // 4, radius * scale_y // 8
-        mouth_rect = pygame.Rect(cx - mouth_w // 2, cy_body_center + radius * scale_y // 3, mouth_w, mouth_h)
-        pygame.draw.rect(surface, COLOR_PET_EYES, mouth_rect, border_radius=1)
+        # --- Mouth ---
+        mouth_y = cy_body_center + radius * scale_y // 3
+        mouth_w = radius * scale_x // 3
+
+        # Eating animation overrides normal mouth
+        if self.state == PetState.EATING:
+            chew_h = (math.sin(self.action_timer * 10) + 1) * 4 # Oscillates between 0 and 8
+            mouth_rect = pygame.Rect(cx - mouth_w // 2, mouth_y, mouth_w, chew_h)
+            pygame.draw.ellipse(surface, COLOR_PET_EYES, mouth_rect)
+        # Happy/Sad mouth
+        elif self.stats.happiness > 70:
+            # Smile (arc)
+            mouth_rect = pygame.Rect(cx - mouth_w // 2, mouth_y - 5, mouth_w, 10)
+            pygame.draw.arc(surface, COLOR_PET_EYES, mouth_rect, math.pi, 2 * math.pi, 2)
+        elif self.stats.happiness < 30:
+            # Frown (arc)
+            mouth_rect = pygame.Rect(cx - mouth_w // 2, mouth_y, mouth_w, 10)
+            pygame.draw.arc(surface, COLOR_PET_EYES, mouth_rect, 0, math.pi, 2)
+        else:
+            # Neutral mouth
+            pygame.draw.line(surface, COLOR_PET_EYES, (cx - mouth_w // 2, mouth_y), (cx + mouth_w // 2, mouth_y), 2)
+
 
         # --- State Visuals ---
         if self.state == PetState.EATING:
