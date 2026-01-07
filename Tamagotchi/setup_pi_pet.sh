@@ -19,8 +19,8 @@ echo "2. Installing required system libraries..."
 sudo apt install -y python3 python3-pip python3-venv python3-dev python3-setuptools \
     libsdl2-2.0-0 libsdl2-dev libsdl2-image-2.0-0 libsdl2-mixer-2.0-0 libsdl2-ttf-2.0-0 \
     libdrm-dev libgbm-dev libmtdev-dev libudev-dev libevdev-dev \
-    libegl-mesa0 libgles2-mesa0 mesa-utils mesa-utils-extra \
-    libjpeg62-turbo libpng16-16 libportmidi0 git sqlite3
+    libegl-mesa0 mesa-utils mesa-utils-extra \
+    libjpeg62-turbo libportmidi0 git sqlite3
 
 # 3. Clone or update the repository
 echo "3. Cloning or updating the repository..."
