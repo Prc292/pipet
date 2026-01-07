@@ -334,8 +334,14 @@ class Pet:
             self._draw_egg_crack(surface, cx, cy, radius, self.crack_level)
             
             time_left = max(0, int(TIME_TO_BABY_SEC - time_elapsed_game))
-            egg_text = font.render(f"EGG ({time_left}s)", True, COLOR_TEXT)
-            surface.blit(egg_text, egg_text.get_rect(center=(cx, cy)))
+            minutes = time_left // 60
+            seconds = time_left % 60
+            time_str = f"{minutes:02d}:{seconds:02d}"
+
+            egg_text = font.render(time_str, True, COLOR_TEXT)
+            # Position the text to the left of the egg
+            text_rect = egg_text.get_rect(midright=(cx - radius - 10, cy))
+            surface.blit(egg_text, text_rect)
             return # Ensure nothing else is drawn when in EGG state
             
         # --- Draw Active Pet Body ---
