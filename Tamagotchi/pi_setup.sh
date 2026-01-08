@@ -21,8 +21,8 @@ sudo apt install -y \
     pulseaudio pulseaudio-utils libasound2-plugins
 
 echo "Creating Python virtual environment..."
-python3 -m venv venv
-source venv/bin/activate
+python3 -m venv ~/pipet/venv
+source ~/pipet/venv/bin/activate
 
 echo "Upgrading pip..."
 pip install --upgrade pip
@@ -41,6 +41,6 @@ export SDL_MOUSEDEV=/dev/input/event0
 echo ""
 echo "======================================================"
 echo "Setup complete! You can now run the game with:"
-echo "source venv/bin/activate"
-echo "python3 main.py"
+echo "source ~/pipet/venv/bin/activate"
+echo "python3 ~/pipet/Tamagotchi/main.py"
 echo "======================================================"
