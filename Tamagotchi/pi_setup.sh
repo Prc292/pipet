@@ -5,10 +5,22 @@
 
 set -e  # exit on errors
 
-echo "Updating package list..."
-sudo apt update
+cd ~
 
-echo "Installing Python, pip, git, and SDL2 dependencies..."
+# 1️⃣ Clone repo into ~/pipet
+if [ ! -d "pipet" ]; then
+    echo "Cloning repo into ~/pipet..."
+    git clone -b dev https://github.com/YOUR_USERNAME/YOUR_REPO.git pipet
+else
+    echo "~/pipet already exists — updating..."
+    cd pipet
+    git pull
+    cd ..
+fi
+
+# 2️⃣ Install system dependencies
+echo "Installing required system packages..."
+sudo apt update
 sudo apt install -y \
     git \
     python3 python3-pip python3-venv \
@@ -18,28 +30,33 @@ sudo apt install -y \
     libsdl2-ttf-2.0-0 \
     python3-pygame \
     libts0 libts-bin \
-    pulseaudio pulseaudio-utils libasound2-plugins
+    pulseaudio pulseaudio-utils libasound2-plugins \
+    libgles2-mesa-dev libegl1-mesa-dev mesa-utils libgl-dev libegl-dev libgles-dev
 
-echo "Creating Python virtual environment..."
-python3 -m venv ~/pipet/venv
+# 3️⃣ Create Python virtual environment in ~/pipet/venv
+if [ ! -d "~/pipet/venv" ]; then
+    echo "Creating Python virtual environment in ~/pipet/venv..."
+    python3 -m venv ~/pipet/venv
+fi
+
 source ~/pipet/venv/bin/activate
 
+# 4️⃣ Python dependencies
 echo "Upgrading pip..."
 pip install --upgrade pip
 
-echo "Installing Python packages from requirements.txt if present..."
-if [ -f requirements.txt ]; then
-    pip install -r requirements.txt
+if [ -f ~/pipet/Tamagotchi/requirements.txt ]; then
+    echo "Installing Python dependencies from requirements.txt..."
+    pip install -r ~/pipet/Tamagotchi/requirements.txt
+else
+    pip install pygame
 fi
 
-echo "Setting environment variables for touchscreen and fullscreen mode..."
-export SDL_VIDEODRIVER=KMSDRM
-export SDL_FBDEV=/dev/fb0
-export SDL_MOUSEDRV=TSLIB
-export SDL_MOUSEDEV=/dev/input/event0
-export SDL_AUDIODRIVER=pulse
+# 5️⃣ Start PulseAudio
+echo "Starting PulseAudio..."
+pulseaudio --start || true
 
-# ------------------ ADD CONFIG.TXT SETTINGS ------------------
+# 6️⃣ Update /boot/firmware/config.txt with HDMI/KMS settings
 echo "Configuring /boot/firmware/config.txt for HDMI/KMS..."
 CONFIG_BLOCK="
 dtoverlay=vc4-kms-v3d
@@ -58,14 +75,25 @@ if ! grep -q "dtoverlay=vc4-kms-v3d" /boot/firmware/config.txt; then
 else
     echo "config.txt already has these settings — skipping"
 fi
-# -------------------------------------------------------------
+
+# 7️⃣ Set environment variables for Pygame/Tamagochi
+export SDL_VIDEODRIVER=KMSDRM
+export SDL_FBDEV=/dev/fb0
+export SDL_MOUSEDRV=TSLIB
+export SDL_MOUSEDEV=/dev/input/event0
+export SDL_AUDIODRIVER=pulse
 
 echo ""
 echo "======================================================"
-echo "Setup complete! NOTE: Reboot is required for config.txt changes to take effect."
+echo "INSTALL COMPLETE!"
+echo "Reboot required for config.txt changes and EGL/OpenGL to take effect."
 echo ""
-echo "after reboot, run the following commands to start the game:"
-echo "source ~/pipet/venv/bin/activate"
-echo "python3 ~/pipet/Tamagotchi/main.py"
-echo ""
-echo "Thank you for installing PetPi"
+echo "To run the game after reboot:"
+echo "  source ~/pipet/venv/bin/activate"
+echo "  python3 ~/pipet/Tamagotchi/main.py"
+echo "======================================================"
+
+# Optional: Uncomment the next line if you want the script to reboot automatically
+echo "Rebooting in 5 seconds..."
+sleep 5
+sudo reboot
