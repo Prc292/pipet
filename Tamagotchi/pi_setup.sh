@@ -1,60 +1,44 @@
 #!/bin/bash
+# setup_tamagotchi.sh
+# One-shot installer for PetPi / Tamagotchi game
+# Designed for Raspberry Pi OS Bookworm Lite + USB touchscreen
 
-# --- Full setup script for Pocket Pi Pet on Raspberry Pi OS Lite ---
-set -e
+set -e  # exit on errors
 
-REPO_URL="https://github.com/Prc292/pipet.git"
-SERVICE_FILE="/etc/systemd/system/pipet.service"
-
-
-echo "--- STARTING AUTOMATED SETUP for pipet ---"
-
-# 1. Update system
-echo "1. Updating system..."
+echo "Updating package list..."
 sudo apt update
-sudo apt upgrade -y
 
-# 2. Install required system libraries and SDL2 runtime/development packages
-echo "2. Installing required system libraries..."
-sudo apt install -y python3 python3-pip python3-venv python3-dev python3-setuptools
-    \ git \ libegl-dev \ libsdl2-2.0-0
+echo "Installing Python, pip, git, and SDL2 dependencies..."
+sudo apt install -y \
+    python3 python3-pip python3-venv git \
+    libsdl2-2.0-0 \
+    libsdl2-image-2.0-0 \
+    libsdl2-mixer-2.0-0 \
+    libsdl2-ttf-2.0-0 \
+    python3-pygame \
+    tslib libts-bin
 
-# 4. Create Python virtual environment and install dependencies
-echo "4. Creating Python virtual environment..."
-cd /home/brian/pipet
+echo "Creating Python virtual environment..."
 python3 -m venv venv
-source "~/pipet/venv/bin/activate"
+source venv/bin/activate
+
+echo "Upgrading pip..."
 pip install --upgrade pip
-pip install -r ~/pipet/Tamagotchi/requirements.txt
 
-# 5. Set executable permissions
-echo "5. Setting executable permissions for main.py..."
-cd /home/brian/Tamagotchi
-chmod +x main.py
+echo "Installing Python packages from requirements.txt if present..."
+if [ -f requirements.txt ]; then
+    pip install -r requirements.txt
+fi
 
-# setup pipet.service systemd service file
-echo "6. Setting up pipet.service systemd service..."
-SERVICE_FILE="/etc/systemd/system/pipet.service"
-sudo bash -c "cat > $SERVICE_FILE" <<EOL
-[Unit]
-Description=Pocket Pi Pet Service
-After=network.target
-[Service]
-Environment="SDL_FBDEV=/dev/fb0"
-Environment="SDL_MOUSEDEV=/dev/input/event0"
-Environment="SDL_MOUSEDRV=TSLIB"
-User=brian
-Group=brian
-WorkingDirectory=/home/brian/pipet
-ExecStart=/home/brian/pipet/venv/bin/python /home/brian/pipet/Tamagotchi/main.py
-Restart=always
-[Install]
-WantedBy=multi-user.target
-EOL
+echo "Setting environment variables for touchscreen and fullscreen mode..."
+export SDL_VIDEODRIVER=KMSDRM
+export SDL_FBDEV=/dev/fb0
+export SDL_MOUSEDRV=TSLIB
+export SDL_MOUSEDEV=/dev/input/event0
 
-echo "--- SETUP COMPLETE ---"
-echo "The game is installed in /home/brian/pipet"
 echo ""
-echo "TO RUN THE GAME:"
-echo "  source ~/pipet/venv/bin/activate"
-echo "  python3 ~/pipet/Tamagotchi/main.py"
+echo "======================================================"
+echo "Setup complete! You can now run the game with:"
+echo "source venv/bin/activate"
+echo "python3 main.py"
+echo "======================================================"
