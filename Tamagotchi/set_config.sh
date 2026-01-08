@@ -19,7 +19,7 @@ sudo sed -i '/^dtoverlay=vc4-kms-v3d/d' "$CONFIG_FILE"
 sudo sed -i '/^max_framebuffers=/d' "$CONFIG_FILE"
 
 # Append new settings
-echo "dtoverlay=vc4-kms-v3d" | sudo tee -a "$CONFIG_FILE"
+echo "dtoverlay=vc4-fkms-v3d" | sudo tee -a "$CONFIG_FILE"
 echo "max_framebuffers=2" | sudo tee -a "$CONFIG_FILE"
 
 echo "config.txt updated. Backup saved as config.txt.bak"
