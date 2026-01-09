@@ -5,7 +5,7 @@ from constants import *
 from models import GameState, PetState, PetStats
 from database import DatabaseManager
 from pet_entity import Pet
-from minigames import bouncing_pet_game
+from minigames import bouncing_ball_game
 from gardening import GardeningGame
 from thought_bubble import ThoughtBubble # Import ThoughtBubble
 import time
@@ -108,7 +108,7 @@ class GameEngine:
             self.pet.transition_to(PetState.SLEEPING)
 
     def play_minigame(self):
-        score = bouncing_pet_game(self.screen, self.font)
+        score = bouncing_ball_game(self.screen, self.font)
         self.pet.stats.happiness = self.pet.stats.clamp(self.pet.stats.happiness + score)
         self.pet.stats.energy = self.pet.stats.clamp(self.pet.stats.energy - 10)
         self.pet.stats.coins += score // 10
@@ -188,9 +188,9 @@ class GameEngine:
         self.activities_buttons.clear()
         
         bouncing_pet_button = pygame.Rect(50, 60, SCREEN_WIDTH - 100, 40)
-        self.activities_buttons.append((bouncing_pet_button, "Bouncing Pet"))
+        self.activities_buttons.append((bouncing_pet_button, "Bouncing Ball"))
         pygame.draw.rect(self.screen, COLOR_BTN, bouncing_pet_button, border_radius=5)
-        self.screen.blit(self.font.render("Bouncing Pet", True, COLOR_TEXT), (bouncing_pet_button.x + 10, bouncing_pet_button.y + 10))
+        self.screen.blit(self.font.render("Bouncing Ball", True, COLOR_TEXT), (bouncing_pet_button.x + 10, bouncing_pet_button.y + 10))
 
         gardening_button = pygame.Rect(50, 110, SCREEN_WIDTH - 100, 40)
         self.activities_buttons.append((gardening_button, "Gardening"))
@@ -245,7 +245,7 @@ class GameEngine:
             if rect.collidepoint(click_pos):
                 if name == "CLOSE":
                     self.game_state = GameState.PET_VIEW
-                elif name == "Bouncing Pet":
+                elif name == "Bouncing Ball":
                     self.play_minigame()
                 elif name == "Gardening":
                     gardening_game = GardeningGame(self.screen, self.font, self.db)
@@ -300,6 +300,7 @@ class GameEngine:
                     elif self.game_state == GameState.ACTIVITIES_VIEW: self.handle_activities_clicks(click_pos)
 
             # Move pet update logic outside the click event handler
+            
             if self.game_state == GameState.PET_VIEW:
                 self.pet.update(dt, current_hour)
                 self.thought_bubble.update(dt) # Update thought bubble here                

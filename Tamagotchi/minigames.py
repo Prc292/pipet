@@ -1,6 +1,7 @@
 import pygame
 import random
 import time
+import os
 
 # --- Constants ---
 SCREEN_WIDTH = 480
@@ -10,13 +11,27 @@ WHITE = (255, 255, 255)
 GREEN = (0, 255, 0)
 RED = (255, 0, 0)
 
-def bouncing_pet_game(screen, font):
+def bouncing_ball_game(screen, font):
     """
-    A simple mini-game where the player clicks the pet to keep it bouncing.
+    A simple mini-game where the player clicks the ball to keep it bouncing.
     The game lasts for a fixed duration, and the score is based on clicks.
     Returns the final score.
     """
     
+    # --- Initialize Mixer (if not already) ---
+    if not pygame.mixer.get_init():
+        pygame.mixer.init()
+
+    # --- Load Music ---
+    base_path = os.path.dirname(__file__)
+    music_path = os.path.join(base_path, "assets", "audio", "play.wav")
+    
+    try:
+        pygame.mixer.music.load(music_path)
+        pygame.mixer.music.play(-1) # Play indefinitely
+    except pygame.error as e:
+        print(f"Warning: Could not load or play music file. Error: {e}")
+
     # --- Game State ---
     score = 0
     game_duration = 15.0 # seconds
@@ -39,6 +54,8 @@ def bouncing_pet_game(screen, font):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+                # --- Stop Music ---
+                pygame.mixer.music.stop() # Stop music on early exit
                 return 0 # Return 0 if game is quit prematurely
 
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -90,4 +107,6 @@ def bouncing_pet_game(screen, font):
         pygame.display.flip()
         clock.tick(60)
         
+    # --- Stop Music ---
+    pygame.mixer.music.stop()
     return score
