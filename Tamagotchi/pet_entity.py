@@ -15,12 +15,13 @@ class Pet:
     # ------------------------------------------------------------------
     # FIX #1: Correct __init__ signature (fixes "Pet() takes no arguments")
     # ------------------------------------------------------------------
-    def __init__(self, db_manager, name="Pet"): 
+    def __init__(self, db_manager, name="Pet", message_callback=None): 
         self.name = name
         self.db = db_manager # DatabaseManager instance
         self.stats = PetStats() 
         self.state = PetState.EGG
         self.life_stage = PetState.EGG
+        self.message_callback = message_callback # Store the callback
 
         self.is_alive = True
         self.birth_time = time.time() 
@@ -37,6 +38,11 @@ class Pet:
         # Egg cracking animation
         self.crack_level = 0.0
         
+        # For tracking previous stats to trigger low stat messages once
+        self.prev_fullness = self.stats.fullness
+        self.prev_happiness = self.stats.happiness
+        self.prev_energy = self.stats.energy
+        
         # Action feedback
         self.action_timer = 0.0
         self.action_duration = 3.0
@@ -45,25 +51,41 @@ class Pet:
 
     def transition_to(self, new_state: PetState):
         if self.state != new_state:
-            print(f"Pet transitioning from {self.state.name} to {new_state.name}")
+            old_state = self.state
+            print(f"Pet transitioning from {old_state.name} to {new_state.name}")
             self.state = new_state
             self.action_timer = 0.0 
 
+            # Trigger messages for state changes
+            if self.message_callback:
+                if new_state == PetState.SLEEPING:
+                    self.message_callback(f"{self.name} is now fast asleep.")
+                elif old_state == PetState.SLEEPING and new_state == PetState.IDLE:
+                    self.message_callback(f"{self.name} woke up! Good morning!")
+                elif new_state == PetState.SICK:
+                    self.message_callback(f"Oh no! {self.name} is feeling sick.")
+                elif old_state == PetState.SICK and new_state == PetState.IDLE:
+                    self.message_callback(f"{self.name} is feeling better!")
+                elif new_state == PetState.DEAD:
+                    self.message_callback(f"Alas, {self.name} has passed away...")
+                elif new_state == PetState.IDLE and old_state == PetState.EGG: # Check old_state for hatching
+                    self.message_callback(f"It's a {self.name}! Welcome to the world!")
+
     def handle_action_complete(self, action_name: str):
-        self.action_feedback_timer = 2.0 
+        # self.action_feedback_timer = 2.0 # No longer needed
         
         if self.state == PetState.EATING:
             self.stats.fullness = self.stats.clamp(self.stats.fullness + 20)
             self.stats.health = self.stats.clamp(self.stats.health + 5)
-            self.action_feedback_text = "YUMMY!"
+            if self.message_callback: self.message_callback({"text": f"{self.name} enjoyed the meal! Fullness +20, Health +5.", "notify": False})
         elif self.state == PetState.PLAYING:
             self.stats.happiness = self.stats.clamp(self.stats.happiness + 30)
             self.stats.energy = self.stats.clamp(self.stats.energy - 10)
-            self.action_feedback_text = "WOOHOO!"
+            if self.message_callback: self.message_callback({"text": f"{self.name} had a blast! Happiness +30, Energy -10.", "notify": False})
         elif self.state == PetState.TRAINING:
             self.stats.discipline = self.stats.clamp(self.stats.discipline + 15)
-            self.stats.happiness = self.stats.clamp(self.stats.happiness - 5)
-            self.action_feedback_text = "SMART!"
+            self.stats.happiness = self.stats.clamp(self.stats.happiness - 5) # Training can be tiring
+            if self.message_callback: self.message_callback({"text": f"{self.name} learned something new! Discipline +15, Happiness -5.", "notify": False})
         
         self.transition_to(PetState.IDLE)
         
@@ -72,12 +94,10 @@ class Pet:
             if self.stats.discipline >= 10:
                 self.stats.health = self.stats.clamp(self.stats.health + 20)
                 self.stats.discipline = self.stats.clamp(self.stats.discipline - 10)
-                self.action_feedback_text = "FEELING BETTER!"
-                self.action_feedback_timer = 2.0
+                if self.message_callback: self.message_callback({"text": f"{self.name} is feeling much better! Health +20.", "notify": False})
                 self.transition_to(PetState.IDLE)
             else:
-                self.action_feedback_text = "NEED DISCIPLINE TO HEAL!"
-                self.action_feedback_timer = 2.0
+                if self.message_callback: self.message_callback({"text": f"{self.name} needs more discipline to accept treatment.", "notify": False})
 
 
     def update(self, dt, current_hour):
@@ -97,12 +117,23 @@ class Pet:
         # 2. Update Stats (Use scaled_dt for accelerated decay)
         self.stats.tick(scaled_dt, self.state, current_hour)
         
-        # 3. Handle Animation Timers and Feedback (Use real dt for smooth visuals)
+        # Trigger messages for low stats
+        if self.message_callback:
+            if self.stats.fullness < 20 and self.prev_fullness >= 20:
+                self.message_callback(f"{self.name} is feeling very hungry!")
+            if self.stats.happiness < 20 and self.prev_happiness >= 20:
+                self.message_callback(f"{self.name} is feeling lonely.")
+            if self.stats.energy < 20 and self.prev_energy >= 20:
+                self.message_callback(f"{self.name} is very tired.")
+        
+        self.prev_fullness = self.stats.fullness
+        self.prev_happiness = self.stats.happiness
+        self.prev_energy = self.stats.energy
+        
+        # 3. Handle Animation Timers (Use real dt for smooth visuals)
         self.idle_bob_timer = (self.idle_bob_timer + dt) % (math.pi * 2) 
         self.idle_bob_offset = math.sin(self.idle_bob_timer * 3) * 2 
         
-        if self.action_feedback_timer > 0:
-            self.action_feedback_timer -= dt
 
         # Blinking logic (Use real dt)
         if self.state != PetState.SLEEPING:
@@ -139,21 +170,27 @@ class Pet:
         if self.life_stage == PetState.EGG and total_game_time > TIME_TO_BABY_SEC:
             self.life_stage = PetState.BABY
             self.transition_to(PetState.IDLE)
+            if self.message_callback: self.message_callback(f"Congratulations! {self.name} has hatched into a Baby!")
             self.save() # Ensure the life stage change is saved
         elif self.life_stage == PetState.BABY and total_game_time > TIME_TO_CHILD_SEC:
             self.life_stage = PetState.CHILD
             self.transition_to(PetState.IDLE)
+            if self.message_callback: self.message_callback(f"{self.name} has grown into a Child!")
         elif self.life_stage == PetState.CHILD and total_game_time > TIME_TO_TEEN_SEC:
             if self.stats.care_mistakes < 3 and self.stats.discipline > 50:
                 self.life_stage = PetState.TEEN_GOOD
+                if self.message_callback: self.message_callback(f"{self.name} evolved into a well-behaved Teen!")
             else:
                 self.life_stage = PetState.TEEN_BAD
+                if self.message_callback: self.message_callback(f"{self.name} evolved into a rebellious Teen...")
             self.transition_to(PetState.IDLE)
         elif self.life_stage in [PetState.TEEN_GOOD, PetState.TEEN_BAD] and total_game_time > TIME_TO_ADULT_SEC:
             if self.stats.care_mistakes < 5 and self.stats.happiness > 75:
                 self.life_stage = PetState.ADULT_GOOD
+                if self.message_callback: self.message_callback(f"Amazing! {self.name} is now a thriving Adult!")
             else:
                 self.life_stage = PetState.ADULT_BAD
+                if self.message_callback: self.message_callback(f"{self.name} has reached adulthood, but seems a bit rough around the edges.")
             self.transition_to(PetState.IDLE)
 
 
@@ -190,17 +227,18 @@ class Pet:
                 if len(row) > 13:
                     self.stats.coins = row[13]
             
-            # Adjust stats based on time passed since last save (scaled time)
-            time_passed_real = time.time() - self.last_update
-            time_passed_game = time_passed_real * TIME_SCALE_FACTOR
-            self.stats.tick(time_passed_game, self.state, datetime.datetime.now().hour) 
+            # Initial message after loading
+            if self.message_callback:
+                self.message_callback(f"Welcome back! {self.name} is {self.life_stage.name.lower()}.")
 
-        except Exception:
+        except Exception as e:
+            print(f"Error loading pet: {e}. Initializing new pet.")
             self.stats = PetStats() 
             self.state = PetState.EGG
             self.life_stage = PetState.EGG
             self.birth_time = time.time()
             self.last_update = time.time()
+            if self.message_callback: self.message_callback(f"A new {self.name} egg has appeared!")
 
     def save(self):
         """Saves current state to the database."""
@@ -427,6 +465,3 @@ class Pet:
 
 
         # --- Action Feedback Overlay ---
-        if self.action_feedback_timer > 0:
-            feedback_surf = font.render(self.action_feedback_text, True, COLOR_HEALTH)
-            surface.blit(feedback_surf, feedback_surf.get_rect(center=(cx, cy_body_center - body_h - 10)))

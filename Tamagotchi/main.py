@@ -13,22 +13,30 @@ import datetime
 
 
 class MessageBox:
-    def __init__(self, screen, font, x, y, width, height, max_messages=5):
+    def __init__(self, screen, font, x, y, width, height, small_font_size=10):
         self.screen = screen
         self.font = font
-        self.rect = pygame.Rect(x, y, width, height)
-        self.messages = []
-        self.max_messages = max_messages
-        self.padding = 5
-        self.visible = False # Message box is hidden by default
+        self.small_font = pygame.font.Font(None, small_font_size)
+        
+        self.maximized_height = height
+        self.minimized_height = 24
+        
+        self.rect = pygame.Rect(x, y, width, self.maximized_height) # Maximized rect
+        self.min_rect = pygame.Rect(x, y, width, self.minimized_height)
 
-    def _wrap_text(self, text, max_width):
+        self.messages = []
+        self.padding = 5
+        self.state = 'minimized' # 'minimized', 'maximized'
+        self.scroll_offset = 0
+        self.all_lines = []
+
+    def _wrap_text(self, text, font, max_width):
         words = text.split(' ')
         lines = []
         current_line = []
         for word in words:
             test_line = ' '.join(current_line + [word])
-            if self.font.size(test_line)[0] <= max_width:
+            if font.size(test_line)[0] <= max_width:
                 current_line.append(word)
             else:
                 lines.append(' '.join(current_line))
@@ -38,37 +46,65 @@ class MessageBox:
 
     def add_message(self, text):
         timestamp = datetime.datetime.now().strftime("%H:%M")
-        self.messages.append(f"[{timestamp}] {text}")
-        if len(self.messages) > self.max_messages:
-            self.messages.pop(0) # Remove oldest message
+        full_message = f"[{timestamp}] {text}"
+        self.messages.append(full_message)
+        new_lines = self._wrap_text(full_message, self.font, self.rect.width - 2 * self.padding)
+        self.all_lines.extend(new_lines)
 
-    def toggle_visibility(self):
-        self.visible = not self.visible
+    def toggle_state(self, clear_unread_callback):
+        if self.state == 'minimized':
+            self.state = 'maximized'
+            self.scroll_offset = 0
+            clear_unread_callback()
+        elif self.state == 'maximized':
+            self.state = 'minimized'
+
+    def handle_scroll(self, event):
+        if self.state != 'maximized':
+            return
+        self.scroll_offset += event.y # event.y is 1 for up, -1 for down
+        if self.scroll_offset < 0:
+            self.scroll_offset = 0
+        max_scroll_offset = len(self.all_lines) - 1
+        if self.scroll_offset > max_scroll_offset:
+            self.scroll_offset = max(0, max_scroll_offset)
 
     def draw(self):
-        if not self.visible:
-            return
+        if self.state == 'minimized':
+            self.draw_minimized()
+        elif self.state == 'maximized':
+            self.draw_maximized()
 
-        # Draw transparent background
+    def draw_minimized(self):
+        s = pygame.Surface((self.min_rect.width, self.min_rect.height), pygame.SRCALPHA)
+        s.fill((50, 50, 50, 150))
+        self.screen.blit(s, self.min_rect.topleft)
+
+        if self.messages:
+            last_message = self.messages[-1]
+            drawable_text = last_message
+            if self.small_font.size(drawable_text)[0] > self.min_rect.width - (self.padding * 2):
+                drawable_text += "..."
+            while self.small_font.size(drawable_text)[0] > self.min_rect.width - (self.padding * 2):
+                drawable_text = drawable_text[:-4] + "..."
+            text_surf = self.small_font.render(drawable_text, True, COLOR_TEXT)
+            self.screen.blit(text_surf, (self.min_rect.x + self.padding, self.min_rect.centery - text_surf.get_height() / 2))
+
+    def draw_maximized(self):
         s = pygame.Surface((self.rect.width, self.rect.height), pygame.SRCALPHA)
         s.fill(COLOR_MESSAGE_BOX_BG)
         self.screen.blit(s, (self.rect.x, self.rect.y))
-
-        # Draw messages
         y_offset = self.padding
-        for msg in reversed(self.messages): # Display newest messages at the bottom
-            wrapped_lines = self._wrap_text(msg, self.rect.width - 2 * self.padding)
-            for line in reversed(wrapped_lines): # Draw wrapped lines from bottom to top
-                text_surface = self.font.render(line, True, COLOR_TEXT)
-                
-                # Check if this line would go beyond the top boundary
-                if self.rect.height - y_offset - text_surface.get_height() < 0:
-                    break # Stop drawing if no more space
-
-                self.screen.blit(text_surface, (self.rect.x + self.padding, self.rect.y + self.rect.height - y_offset - text_surface.get_height()))
-                y_offset += text_surface.get_height() + self.padding
-            if self.rect.height - y_offset < 0: # Check if message box is full
+        start_index = len(self.all_lines) - 1 - self.scroll_offset
+        for i in range(start_index, -1, -1):
+            line = self.all_lines[i]
+            text_surface = self.font.render(line, True, COLOR_TEXT)
+            line_height = text_surface.get_height()
+            if self.rect.height - y_offset - line_height < 0:
                 break
+            self.screen.blit(text_surface, (self.rect.x + self.padding, self.rect.y + self.rect.height - y_offset - line_height))
+            y_offset += line_height + self.padding
+
 
 
 # --- Day/Night Cycle Colors ---
@@ -80,6 +116,20 @@ COLOR_DAWN_BG = (255, 223, 186) # Peach Puff
 
 class GameEngine:
     """Orchestrates the MVC relationship."""
+    def add_game_message(self, message_data):
+        if isinstance(message_data, str):
+            text = message_data
+            with_notification = True
+        else:
+            text = message_data.get("text", "")
+            with_notification = message_data.get("notify", True)
+
+        if not text: return
+
+        self.message_box.add_message(text)
+        if with_notification:
+            self.unread_messages_count += 1
+
     def __init__(self):
         pygame.init()
         pygame.mixer.init()
@@ -93,16 +143,17 @@ class GameEngine:
         self.background_image = pygame.transform.scale(self.background_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
         
         self.clock = pygame.time.Clock()
-        self.font = pygame.font.Font(None, 22)
+        self.font = pygame.font.Font(None, 16)
 
         self.db = DatabaseManager(DB_FILE)
-        
-        self.pet = Pet(self.db, name="Gizmo")
-        self.pet.load()
 
-        self.message_box = MessageBox(self.screen, self.font, 220, 51, 250, 100)
-        self.message_box.add_message("Welcome!")
+        self.message_box = MessageBox(self.screen, self.font, 290, 50, 170, 150)
         self.unread_messages_count = 0
+        # Initial message will now be handled by the Pet's loading/initialization
+        # self.message_box.add_message("Welcome!")
+        
+        self.pet = Pet(self.db, name="Gizmo", message_callback=self.add_game_message)
+        self.pet.load()
 
         self.stat_flash_timers = {}
         self.prev_stats = PetStats()
@@ -133,9 +184,6 @@ class GameEngine:
         self.btn_shop = pygame.Rect(308, SCREEN_HEIGHT - 25, 60, 20)
         self.btn_quit = pygame.Rect(373, SCREEN_HEIGHT - 25, 60, 20) # Adjusted Quit button
         
-        # New Messages button, positioned below the Discipline stat bar
-        self.btn_messages = pygame.Rect(380, 51, 60, 20)
-        
         self.buttons = [
             (self.btn_feed, "FEED", self.handle_feed),
             (self.btn_activities, "PLAY", self.handle_activities),
@@ -143,7 +191,6 @@ class GameEngine:
             (self.btn_sleep, "SLEEP", self._toggle_sleep),
             (self.btn_shop, "SHOP", self.handle_shop),
             (self.btn_quit, "QUIT", lambda: sys.exit()),
-            (self.btn_messages, "MSGS", self.handle_messages_button) # Messages button is now separate
         ]
         self.inventory_buttons, self.shop_buttons, self.activities_buttons = [], [], []
 
@@ -158,16 +205,10 @@ class GameEngine:
         print(f"handle_feed called. Current pet state: {self.pet.state}")
         if self.pet.state == PetState.IDLE:
             self.game_state = GameState.INVENTORY_VIEW
-            self.message_box.add_message("Fed pet!")
-            self.unread_messages_count += 1
 
     def handle_shop(self):
                     self.game_state = GameState.SHOP_VIEW
 
-    def handle_messages_button(self):
-        if self.sound_click: self.sound_click.play()
-        self.message_box.toggle_visibility()
-        self.unread_messages_count = 0
     def handle_activities(self):
         if self.pet.state == PetState.IDLE:
             self.game_state = GameState.ACTIVITIES_VIEW
@@ -176,37 +217,27 @@ class GameEngine:
         if self.pet.state == PetState.IDLE or self.pet.state == PetState.SICK:
             if self.sound_click: self.sound_click.play()
             self.pet.transition_to(PetState.TRAINING)
-            self.message_box.add_message("Pet trained!")
-            self.unread_messages_count += 1
     
     def handle_heal(self):
         if self.pet.state == PetState.SICK:
             if self.sound_heal: self.sound_heal.play()
             self.pet.heal()
-            self.message_box.add_message("Pet healed!")
-            self.unread_messages_count += 1
 
     def _toggle_sleep(self):
         if self.sound_click: self.sound_click.play()
         if self.pet.state == PetState.SLEEPING:
             self.pet.transition_to(PetState.IDLE)
-            self.message_box.add_message("Pet woke up.")
-            self.unread_messages_count += 1
         else:
             self.pet.transition_to(PetState.SLEEPING)
-            self.message_box.add_message("Pet is sleeping.")
-            self.unread_messages_count += 1
 
     def play_minigame(self):
         score = bouncing_ball_game(self.screen, self.font)
         self.pet.stats.happiness = self.pet.stats.clamp(self.pet.stats.happiness + score)
         self.pet.stats.energy = self.pet.stats.clamp(self.pet.stats.energy - 10)
-        self.pet.stats.coins += score // 10
-        self.pet.action_feedback_text = f"+{score} HAPPY! +{score//10} C"
-        self.pet.action_feedback_timer = 2.0
+        coins_earned = score // 10
+        self.pet.stats.coins += coins_earned
+        self.add_game_message({"text": f"You earned {coins_earned} coins from Bouncing Ball!", "notify": False})
         self.game_state = GameState.PET_VIEW
-        self.message_box.add_message("Played minigame!")
-        self.unread_messages_count += 1
 
     def update_prev_stats(self):
         self.prev_stats.fullness = self.pet.stats.fullness
@@ -326,8 +357,7 @@ class GameEngine:
                         _, _, _, effect_stat, effect_value = item
                         current_value = getattr(self.pet.stats, effect_stat)
                         setattr(self.pet.stats, effect_stat, self.pet.stats.clamp(current_value + effect_value))
-                        self.pet.action_feedback_text = f"Used {name}!"
-                        self.pet.action_feedback_timer = 2.0
+                        self.add_game_message({"text": f"You fed {self.pet.name} a snack.", "notify": False})
                         self.game_state = GameState.PET_VIEW
                         if self.sound_eat: self.sound_eat.play()
 
@@ -354,8 +384,7 @@ class GameEngine:
                     if price and self.pet.stats.coins >= price:
                         self.pet.stats.coins -= price
                         self.db.add_item_to_inventory(name)
-                        self.pet.action_feedback_text = f"Bought {name}!"
-                        self.pet.action_feedback_timer = 2.0
+                        self.add_game_message({"text": f"You bought a {name}!", "notify": False})
 
     def run(self):
         running = True
@@ -372,6 +401,10 @@ class GameEngine:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT: running = False
                 
+                if event.type == pygame.MOUSEWHEEL:
+                    if self.message_box.visible:
+                        self.message_box.handle_scroll(event)
+
                 click_pos = None
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1: click_pos = event.pos
                 elif event.type == pygame.FINGERDOWN:
@@ -380,9 +413,18 @@ class GameEngine:
 
                 if click_pos:
                     if self.game_state == GameState.PET_VIEW:
-                        if self.pet.state != PetState.DEAD:
+                        # Message box is on top, check it first.
+                        is_maximized_box_click = self.message_box.state == 'maximized' and self.message_box.rect.collidepoint(click_pos)
+                        is_minimized_box_click = self.message_box.state == 'minimized' and self.message_box.min_rect.collidepoint(click_pos)
+
+                        if is_maximized_box_click or is_minimized_box_click:
+                            self.message_box.toggle_state(lambda: setattr(self, 'unread_messages_count', 0))
+                            if self.sound_click: self.sound_click.play()
+                        
+                        # Only check other buttons if message box was not clicked (or if it was minimized)
+                        elif self.pet.state != PetState.DEAD:
                             if self.sound_click:
-                                if any(rect.collidepoint(click_pos) for rect, _, _ in self.buttons) or self.pet_click_area.collidepoint(click_pos):
+                                if any(rect.collidepoint(click_pos) for rect, _, _ in self.buttons):
                                     self.sound_click.play()
                             if self.pet.state == PetState.SICK and self.pet_click_area.collidepoint(click_pos): self.handle_heal()
                             for rect, name, action in self.buttons:
@@ -422,26 +464,12 @@ class GameEngine:
                     self.message_box.draw()
                     
                     points_surf = self.font.render(f"Coins: {self.pet.stats.coins}", True, COLOR_TEXT)
-                    self.screen.blit(points_surf, (20, 60))
+                    self.screen.blit(points_surf, (20, 5))
                     
                     for rect, text, _ in self.buttons:
                         pygame.draw.rect(self.screen, COLOR_BTN, rect, border_radius=5)
                         text_surf = self.font.render(text, True, COLOR_TEXT)
                         self.screen.blit(text_surf, text_surf.get_rect(center=rect.center))
-
-                        # Draw notification for messages button
-                        if rect == self.btn_messages and self.unread_messages_count > 0:
-                            # Draw a small circle (notification badge)
-                            badge_radius = 8
-                            badge_center_x = rect.right - badge_radius
-                            badge_center_y = rect.top + badge_radius
-                            pygame.draw.circle(self.screen, (255, 0, 0), (badge_center_x, badge_center_y), badge_radius)
-                            
-                            # Draw the count if it's visible
-                            count_text = str(self.unread_messages_count)
-                            count_surf = self.font.render(count_text, True, (255, 255, 255)) # White text
-                            count_rect = count_surf.get_rect(center=(badge_center_x, badge_center_y))
-                            self.screen.blit(count_surf, count_rect)
 
             elif self.game_state == GameState.INVENTORY_VIEW:
                     self.draw_inventory()
