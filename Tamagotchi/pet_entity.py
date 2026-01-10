@@ -363,7 +363,7 @@ class Pet:
         if self.state == PetState.DEAD:
              dead_color = (80, 80, 80)
              pygame.draw.ellipse(surface, dead_color, (cx - radius, cy - radius // 2 + 10, radius * 2, radius))
-             dead_text = font.render("REST IN PEACE", True, (255, 0, 0))
+             dead_text = font.render("REST IN PEACE", False, (255, 0, 0))
              surface.blit(dead_text, dead_text.get_rect(center=(cx, cy)))
              return
         
@@ -379,7 +379,7 @@ class Pet:
             seconds = time_left % 60
             time_str = f"{minutes:02d}:{seconds:02d}"
 
-            egg_text = font.render(time_str, True, COLOR_TEXT)
+            egg_text = font.render(time_str, False, COLOR_TEXT)
             # Position the text to the left of the egg
             text_rect = egg_text.get_rect(midright=(cx - radius - 10, cy))
             surface.blit(egg_text, text_rect)
@@ -406,7 +406,7 @@ class Pet:
             
             # Eyes
             if self.state == PetState.SLEEPING:
-                zzz = font.render("Zzz", True, COLOR_TEXT)
+                zzz = font.render("Zzz", False, COLOR_TEXT)
                 surface.blit(zzz, zzz.get_rect(center=(cx + radius + 5, cy_body_center - radius)))
                 pygame.draw.line(surface, COLOR_PET_EYES, (cx - eye_w, eye_y), (cx - eye_w // 2, eye_y), 2)
                 pygame.draw.line(surface, COLOR_PET_EYES, (cx + eye_w // 2, eye_y), (cx + eye_w, eye_y), 2)
@@ -451,7 +451,7 @@ class Pet:
             if self.state == PetState.PLAYING:
                 # Bouncing hearts (animation)
                 heart_font = pygame.font.Font(None, 20)
-                heart_sym = heart_font.render("<3", True, (255, 100, 150))
+                heart_sym = heart_font.render("<3", False, (255, 100, 150))
                 
                 heart_y_offset = math.sin(self.play_bounce_timer * 0.5) * 5 
 
@@ -460,7 +460,7 @@ class Pet:
             
             if self.state == PetState.SICK:
                 skull_font = pygame.font.Font(None, 40)
-                sick_sym = skull_font.render("X", True, COLOR_SICK)
+                sick_sym = skull_font.render("X", False, COLOR_SICK)
                 surface.blit(sick_sym, sick_sym.get_rect(center=(cx, cy_body_center - body_h * 0.75)))
 
 

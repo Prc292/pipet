@@ -28,3 +28,9 @@ COLOR_TEXT = (171, 178, 191)
 COLOR_BTN = (100, 100, 100)
 COLOR_SICK = (198, 120, 221)
 COLOR_MESSAGE_BOX_BG = (50, 50, 50, 128) # Semi-transparent dark grey
+
+# --- COMMON COLORS ---
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GREEN = (0, 255, 0)
+RED = (255, 0, 0)

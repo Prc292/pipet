@@ -1,112 +1,110 @@
 import pygame
 import random
 import time
-import os
+from constants import SCREEN_WIDTH, SCREEN_HEIGHT, BLACK, WHITE, GREEN, RED
 
-# --- Constants ---
-SCREEN_WIDTH = 480
-SCREEN_HEIGHT = 320
-BLACK = (0, 0, 0)
-WHITE = (255, 255, 255)
-GREEN = (0, 255, 0)
-RED = (255, 0, 0)
-
-def bouncing_ball_game(screen, font):
+class CatchTheFoodMinigame:
     """
-    A simple mini-game where the player clicks the ball to keep it bouncing.
-    The game lasts for a fixed duration, and the score is based on clicks.
-    Returns the final score.
+    A mini-game where the player moves a character to catch falling food items.
     """
-    
-    # --- Initialize Mixer (if not already) ---
-    if not pygame.mixer.get_init():
-        pygame.mixer.init()
-
-    # --- Load Music ---
-    base_path = os.path.dirname(__file__)
-    music_path = os.path.join(base_path, "assets", "audio", "play.wav")
-    
-    try:
-        pygame.mixer.music.load(music_path)
-        pygame.mixer.music.play(-1) # Play indefinitely
-    except pygame.error as e:
-        print(f"Warning: Could not load or play music file. Error: {e}")
-
-    # --- Game State ---
-    score = 0
-    game_duration = 15.0 # seconds
-    start_time = time.time()
-    
-    # --- Pet Properties ---
-    pet_radius = 30
-    pet_x = SCREEN_WIDTH // 2
-    pet_y = SCREEN_HEIGHT // 2
-    pet_vy = 0 # vertical velocity
-    gravity = 0.5
-    bounce_strength = -10
-    
-    clock = pygame.time.Clock()
-    running = True
-    
-    while running:
-        # --- Event Handling ---
-        click_pos = None
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-                # --- Stop Music ---
-                pygame.mixer.music.stop() # Stop music on early exit
-                return 0 # Return 0 if game is quit prematurely
-
-            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                click_pos = event.pos
-            elif event.type == pygame.FINGERDOWN:
-                # Scale normalized touch coordinates to screen dimensions
-                win_w, win_h = screen.get_size()
-                click_pos = (int(event.x * win_w), int(event.y * win_h))
-
-        if click_pos:
-            distance = ((click_pos[0] - pet_x)**2 + (click_pos[1] - pet_y)**2)**0.5
-            if distance <= pet_radius:
-                pet_vy = bounce_strength
-                score += 1
-
-        # --- Game Logic ---
-        # Apply gravity
-        pet_vy += gravity
-        pet_y += pet_vy
+    def __init__(self, font):
+        self.font = font
+        self.score = 0
+        self.game_duration = 20.0
+        self.start_time = time.time()
         
-        # Bounce off top/bottom walls
-        if pet_y - pet_radius < 0:
-            pet_y = pet_radius
-            pet_vy = 0
-        if pet_y + pet_radius > SCREEN_HEIGHT:
-            pet_y = SCREEN_HEIGHT - pet_radius
-            pet_vy *= -0.7 # Lose some energy on bounce
+        self.player_rect = pygame.Rect(SCREEN_WIDTH // 2 - 25, SCREEN_HEIGHT - 50, 50, 20)
+        
+        self.good_foods = []
+        self.bad_foods = []
+        self.food_speed = 4
+        self.food_spawn_timer = 0
+        self.food_spawn_interval = 0.4
 
-        # --- Timer ---
-        time_elapsed = time.time() - start_time
-        time_left = game_duration - time_elapsed
-        if time_left <= 0:
-            running = False
+        self.is_over = False
+        self.game_over_acknowledged = False
+
+    def handle_event(self, event, raw_pos):
+        if self.is_over:
+            if (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1) or (event.type == pygame.FINGERDOWN):
+                self.game_over_acknowledged = True
+
+    def update(self, mouse_pos):
+        if self.is_over:
+            return
+
+        # Player movement
+        self.player_rect.centerx = mouse_pos[0]
+
+        # Clamp player position to screen bounds
+        if self.player_rect.left < 0:
+            self.player_rect.left = 0
+        if self.player_rect.right > SCREEN_WIDTH:
+            self.player_rect.right = SCREEN_WIDTH
+
+        # Spawn food
+        self.food_spawn_timer += 1/30.0 # Assuming 30 FPS from main loop
+        if self.food_spawn_timer > self.food_spawn_interval:
+            self.food_spawn_timer = 0
+            self.spawn_food()
+
+        # Update good food
+        for food in self.good_foods[:]:
+            food.y += self.food_speed
+            if self.player_rect.colliderect(food):
+                self.good_foods.remove(food)
+                self.score += 1
+            elif food.y > SCREEN_HEIGHT:
+                self.good_foods.remove(food)
+
+        # Update bad food
+        for food in self.bad_foods[:]:
+            food.y += self.food_speed
+            if self.player_rect.colliderect(food):
+                self.bad_foods.remove(food)
+                self.score = max(0, self.score - 2) # Penalty for catching bad food
+            elif food.y > SCREEN_HEIGHT:
+                self.bad_foods.remove(food)
+
+        # Check for game over
+        if time.time() - self.start_time >= self.game_duration:
+            self.is_over = True
             
-        # --- Drawing ---
-        screen.fill(BLACK)
+    def spawn_food(self):
+        x = random.randint(0, SCREEN_WIDTH - 20)
+        item_rect = pygame.Rect(x, -20, 20, 20)
+        if random.random() > 0.3: # 70% chance of good food
+            self.good_foods.append(item_rect)
+        else:
+            self.bad_foods.append(item_rect)
+
+    def draw(self, surface):
+        surface.fill(BLACK)
         
-        # Draw pet
-        pygame.draw.circle(screen, GREEN, (int(pet_x), int(pet_y)), pet_radius)
+        # Draw player
+        pygame.draw.rect(surface, GREEN, self.player_rect)
+
+        # Draw foods
+        for food in self.good_foods:
+            pygame.draw.rect(surface, GREEN, food)
+        for food in self.bad_foods:
+            pygame.draw.rect(surface, RED, food)
         
-        # Draw Score and Timer
-        score_text = font.render(f"Score: {score}", True, WHITE)
-        screen.blit(score_text, (10, 10))
+        # Draw UI
+        score_text = self.font.render(f"Score: {self.score}", False, WHITE)
+        surface.blit(score_text, (10, 10))
         
-        timer_text = font.render(f"Time: {int(time_left)}", True, WHITE)
-        screen.blit(timer_text, (SCREEN_WIDTH - timer_text.get_width() - 10, 10))
-        
-        # --- Update Display ---
-        pygame.display.flip()
-        clock.tick(60)
-        
-    # --- Stop Music ---
-    pygame.mixer.music.stop()
-    return score
+        time_left = self.game_duration - (time.time() - self.start_time)
+        timer_text = self.font.render(f"Time: {int(max(0, time_left))}", False, WHITE)
+        surface.blit(timer_text, (SCREEN_WIDTH - timer_text.get_width() - 10, 10))
+
+        if self.is_over:
+            game_over_font = pygame.font.Font(None, 40)
+            game_over_text = game_over_font.render("Game Over", False, RED)
+            score_display_text = self.font.render(f"Final Score: {self.score}", False, WHITE)
+            
+            game_over_rect = game_over_text.get_rect(center=(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 - 20))
+            score_rect = score_display_text.get_rect(center=(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 + 20))
+
+            surface.blit(game_over_text, game_over_rect)
+            surface.blit(score_display_text, score_rect)

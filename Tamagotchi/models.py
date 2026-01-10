@@ -3,11 +3,12 @@ from enum import Enum, auto
 from dataclasses import dataclass
 
 class GameState(Enum):
-    """Manages the overall application state (e.g., showing pet, inventory, or shop)."""
     PET_VIEW = auto()
     INVENTORY_VIEW = auto()
     SHOP_VIEW = auto()
     ACTIVITIES_VIEW = auto()
+    CATCH_THE_FOOD_MINIGAME = auto()
+    GARDENING_MINIGAME = auto()
 
 class PetState(Enum):
     """
