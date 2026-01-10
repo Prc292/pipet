@@ -102,5 +102,4 @@ pet_save.json
 # Logs
 *.log
 
-.gemini/
-gha-creds-*.json
+
