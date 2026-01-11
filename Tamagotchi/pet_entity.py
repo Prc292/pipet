@@ -52,7 +52,11 @@ class Pet:
         self.blink_animation_timer = 0
         self.blink_animation_speed = 0.1  # 100ms per frame
         self.is_blinking = False
-        self.time_to_next_blink = random.uniform(3, 6)
+        self.blink_intervals = [1, 3, 6]
+        self.shuffled_blink_intervals = self.blink_intervals.copy()
+        random.shuffle(self.shuffled_blink_intervals)
+        self.current_blink_interval_index = 0
+        self.time_to_next_blink = self.shuffled_blink_intervals[self.current_blink_interval_index]
 
         # Parse spritesheets
         sprite_width = 64
@@ -185,7 +189,11 @@ class Pet:
                     if self.blink_frame_index >= len(self.blink_animation_frames):
                         self.is_blinking = False
                         self.blink_frame_index = 0
-                        self.time_to_next_blink = random.uniform(3, 6)
+                        self.current_blink_interval_index += 1
+                        if self.current_blink_interval_index >= len(self.shuffled_blink_intervals):
+                            random.shuffle(self.shuffled_blink_intervals)
+                            self.current_blink_interval_index = 0
+                        self.time_to_next_blink = self.shuffled_blink_intervals[self.current_blink_interval_index]
 
         # 4. State Checks and Evolution
         
