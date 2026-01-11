@@ -162,7 +162,7 @@ class GameEngine:
         # Initial message will now be handled by the Pet's loading/initialization
         # self.message_box.add_message("Welcome!")
         
-        self.pet = Pet(self.db, name="Gizmo", message_callback=self.add_game_message)
+        self.pet = Pet(self.db, name="Bobo", message_callback=self.add_game_message)
         self.pet.load()
 
         self.stat_flash_timers = {}
