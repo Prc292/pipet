@@ -377,6 +377,8 @@ class GameEngine:
                         self.pet.stats.coins -= price
                         self.db.add_item_to_inventory(name)
                         self.add_game_message({"text": f"You bought a {name}!", "notify": False})
+                    else:
+                        self.add_game_message({"text": "Not enough coins!", "notify": True})
 
     def run(self):
         running = True
