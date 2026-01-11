@@ -8,12 +8,50 @@ POINTS_PER_WIN = 10
 
 # --- SHOP (Prices in Coins) ---
 SHOP_ITEMS = {
-    'Standard Meal': 10,
-    'Candy': 5,
-    'Energy Drink': 15,
-    'Medicine': 20,
-    'Super Meal': 25,
+    'snacks': [
+        {'id': 'cookie', 'name': 'Cookie', 'price': 5, 'hunger': 10, 'energy': 5, 'happiness': 5},
+        {'id': 'candy', 'name': 'Candy', 'price': 3, 'hunger': 5, 'energy': 3, 'happiness': 10},
+        {'id': 'chocolate', 'name': 'Chocolate', 'price': 8, 'hunger': 12, 'energy': 8, 'happiness': 15},
+        {'id': 'lollipop', 'name': 'Lollipop', 'price': 4, 'hunger': 5, 'energy': 2, 'happiness': 8},
+        {'id': 'donut', 'name': 'Donut', 'price': 7, 'hunger': 15, 'energy': 5, 'happiness': 12},
+        {'id': 'ice_cream', 'name': 'Ice Cream', 'price': 10, 'hunger': 18, 'energy': 5, 'happiness': 20},
+        {'id': 'popcorn', 'name': 'Popcorn', 'price': 6, 'hunger': 8, 'energy': 3, 'happiness': 7},
+        {'id': 'chips', 'name': 'Chips', 'price': 5, 'hunger': 10, 'energy': 4, 'happiness': 6},
+    ],
+    'foods': [
+        {'id': 'apple', 'name': 'Apple', 'price': 5, 'hunger': 15, 'energy': 8, 'health': 5},
+        {'id': 'banana', 'name': 'Banana', 'price': 4, 'hunger': 12, 'energy': 10, 'health': 3},
+        {'id': 'burger', 'name': 'Burger', 'price': 15, 'hunger': 35, 'energy': 15, 'happiness': 10},
+        {'id': 'pizza', 'name': 'Pizza', 'price': 12, 'hunger': 30, 'energy': 12, 'happiness': 15},
+        {'id': 'sandwich', 'name': 'Sandwich', 'price': 10, 'hunger': 25, 'energy': 10, 'health': 5},
+        {'id': 'rice', 'name': 'Rice Bowl', 'price': 8, 'hunger': 20, 'energy': 12, 'health': 8},
+        {'id': 'noodles', 'name': 'Noodles', 'price': 9, 'hunger': 22, 'energy': 10, 'happiness': 8},
+        {'id': 'sushi', 'name': 'Sushi', 'price': 18, 'hunger': 28, 'energy': 15, 'health': 10},
+    ],
+    'drinks': [
+        {'id': 'water', 'name': 'Water', 'price': 2, 'hunger': 5, 'energy': 3, 'health': 5},
+        {'id': 'juice', 'name': 'Juice', 'price': 6, 'hunger': 10, 'energy': 8, 'happiness': 5},
+        {'id': 'soda', 'name': 'Soda', 'price': 5, 'hunger': 8, 'energy': 5, 'happiness': 10},
+        {'id': 'milk', 'name': 'Milk', 'price': 4, 'hunger': 12, 'energy': 5, 'health': 8},
+        {'id': 'tea', 'name': 'Tea', 'price': 5, 'hunger': 5, 'energy': 10, 'health': 5},
+        {'id': 'smoothie', 'name': 'Smoothie', 'price': 10, 'hunger': 15, 'energy': 12, 'health': 10},
+    ],
+    'energy': [
+        {'id': 'energy_red', 'name': 'Red Bull', 'price': 15, 'hunger': 5, 'energy': 30, 'happiness': 5},
+        {'id': 'energy_blue', 'name': 'Blue Energy', 'price': 15, 'hunger': 5, 'energy': 30, 'happiness': 5},
+        {'id': 'energy_green', 'name': 'Green Power', 'price': 15, 'hunger': 5, 'energy': 30, 'happiness': 5},
+        {'id': 'sports_drink', 'name': 'Sports Drink', 'price': 12, 'hunger': 8, 'energy': 25, 'health': 5},
+        {'id': 'protein', 'name': 'Protein Shake', 'price': 18, 'hunger': 20, 'energy': 20, 'health': 10},
+    ],
 }
+
+# Category info
+CATEGORIES = [
+    {'id': 'snacks', 'name': '🍪 Snacks', 'color': (255, 182, 193)}, # PINK
+    {'id': 'foods', 'name': '🍔 Foods', 'color': (255, 165, 0)}, # ORANGE
+    {'id': 'drinks', 'name': '🥤 Drinks', 'color': (100, 149, 237)}, # BLUE
+    {'id': 'energy', 'name': '⚡ Energy', 'color': (50, 205, 50)}, # GREEN
+]
 
 # --- RETRO UI PALETTE ---
 COLOR_BG = (40, 44, 52)
@@ -34,3 +72,10 @@ BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 GREEN = (0, 255, 0)
 RED = (255, 0, 0)
+GRAY = (200, 200, 200)
+LIGHT_GRAY = (240, 240, 240)
+DARK_GRAY = (100, 100, 100)
+PINK = (255, 182, 193)
+ORANGE = (255, 165, 0)
+BLUE = (100, 149, 237)
+YELLOW = (255, 215, 0)

@@ -113,6 +113,86 @@ class MessageBox:
             y_offset += line_height + self.padding
 
 
+class Button:
+    def __init__(self, x, y, width, height, text, color, text_color=WHITE):
+        self.rect = pygame.Rect(x, y, width, height)
+        self.text = text
+        self.color = color
+        self.text_color = text_color
+        self.hover = False
+
+    def draw(self, screen, font, color_override=None):
+        draw_color = color_override if color_override else (tuple(min(c + 20, 255) for c in self.color) if self.hover else self.color)
+        pygame.draw.rect(screen, draw_color, self.rect, border_radius=10)
+        pygame.draw.rect(screen, BLACK, self.rect, 2, border_radius=10)
+        
+        text_surface = font.render(self.text, True, self.text_color)
+        text_rect = text_surface.get_rect(center=self.rect.center)
+        screen.blit(text_surface, text_rect)
+
+    def is_clicked(self, pos):
+        return self.rect.collidepoint(pos)
+
+    def update_hover(self, pos):
+        self.hover = self.rect.collidepoint(pos)
+
+
+class ItemCard:
+    def __init__(self, item, x, y, width, height):
+        self.item = item
+        self.rect = pygame.Rect(x, y, width, height)
+        self.buy_button = Button(x + 10, y + height - 40, width - 20, 30, 
+                                 f"💰 {item['price']}", GREEN, WHITE)
+        self.hover = False
+
+    def draw(self, screen, font, small_font):
+        # Card background
+        color = LIGHT_GRAY if not self.hover else (250, 250, 250)
+        pygame.draw.rect(screen, color, self.rect, border_radius=10)
+        pygame.draw.rect(screen, DARK_GRAY, self.rect, 2, border_radius=10)
+
+        # Icon placeholder (you'll replace this with actual images)
+        icon_rect = pygame.Rect(self.rect.x + 30, self.rect.y + 10, 64, 64)
+        pygame.draw.rect(screen, GRAY, icon_rect, border_radius=5)
+        
+        # Draw icon filename text
+        icon_text = small_font.render(f"{self.item['id']}.png", True, DARK_GRAY)
+        icon_text_rect = icon_text.get_rect(center=icon_rect.center)
+        screen.blit(icon_text, icon_text_rect)
+
+        # Item name
+        name_surface = font.render(self.item['name'], True, BLACK)
+        name_rect = name_surface.get_rect(centerx=self.rect.centerx, y=self.rect.y + 80)
+        screen.blit(name_surface, name_rect)
+
+        # Stats
+        y_offset = 105
+        stats = []
+        if 'hunger' in self.item and self.item['hunger']:
+            stats.append(f"🍖 Hunger: +{self.item['hunger']}")
+        if 'energy' in self.item and self.item['energy']:
+            stats.append(f"⚡ Energy: +{self.item['energy']}")
+        if 'happiness' in self.item and self.item['happiness']:
+            stats.append(f"😊 Happy: +{self.item['happiness']}")
+        if 'health' in self.item and self.item['health']:
+            stats.append(f"❤️ Health: +{self.item['health']}")
+
+        for stat in stats:
+            stat_surface = small_font.render(stat, True, DARK_GRAY)
+            stat_rect = stat_surface.get_rect(centerx=self.rect.centerx, y=self.rect.y + y_offset)
+            screen.blit(stat_surface, stat_rect)
+            y_offset += 18
+
+        # Buy button
+        self.buy_button.draw(screen, small_font)
+
+    def update_hover(self, pos):
+        self.hover = self.rect.collidepoint(pos)
+        self.buy_button.update_hover(pos)
+
+    def is_buy_clicked(self, pos):
+        return self.buy_button.is_clicked(pos)
+
 
 # --- Day/Night Cycle Colors ---
 COLOR_DAY_BG = (135, 206, 235)  # Sky Blue
@@ -205,12 +285,45 @@ class GameEngine:
         self.inventory_buttons, self.shop_buttons, self.activities_buttons = [], [], []
         self.minigame = None
 
+        # Shop UI State
+        self.shop_category_buttons = []
+        self.shop_item_cards = []
+        self.selected_shop_category = 'snacks'
+        self._setup_shop_ui() # Initialize shop UI
+    
+    def _setup_shop_ui(self):
+        # Category buttons
+        button_width = 150
+        button_height = 40
+        start_x = 50
+        self.shop_category_buttons.clear()
+        for i, cat in enumerate(CATEGORIES):
+            btn = Button(start_x + i * (button_width + 10), 120, 
+                        button_width, button_height, cat['name'], cat['color'])
+            btn.category_id = cat['id']
+            self.shop_category_buttons.append(btn)
 
+        self._update_shop_item_cards()
 
+    def _update_shop_item_cards(self):
+        self.shop_item_cards.clear()
+        items = SHOP_ITEMS[self.selected_shop_category]
+        
+        card_width = 140
+        card_height = 220
+        cards_per_row = 4
+        margin = 20
+        start_x = 50
+        start_y = 180
 
-
-
-
+        for i, item in enumerate(items):
+            row = i // cards_per_row
+            col = i % cards_per_row
+            x = start_x + col * (card_width + margin)
+            y = start_y + row * (card_height + margin)
+            
+            card = ItemCard(item, x, y, card_width, card_height)
+            self.shop_item_cards.append(card)
 
     def handle_feed(self):
         print(f"handle_feed called. Current pet state: {self.pet.state}")
@@ -328,24 +441,62 @@ class GameEngine:
         self.native_surface.blit(self.font.render("Close", False, COLOR_TEXT), (close_button.centerx - self.font.render("Close", False, COLOR_TEXT).get_width() // 2, close_button.y + 2)) # Adjusted text y to center
 
     def draw_shop(self):
-        self.native_surface.fill(COLOR_BG)
-        title_surf = self.font.render("Shop", False, COLOR_TEXT)
-        self.native_surface.blit(title_surf, (SCREEN_WIDTH // 2 - title_surf.get_width() // 2, 20))
-        points_surf = self.font.render(f"Coins: {self.pet.stats.coins}", False, COLOR_TEXT)
-        self.native_surface.blit(points_surf, (20, 20))
+        self.native_surface.fill((230, 230, 250)) # Light background
 
-        self.shop_buttons.clear()
-        for i, (item_name, price) in enumerate(SHOP_ITEMS.items()):
-            item_text = f"Buy {item_name} - {price} pts"
-            item_rect = pygame.Rect(50, 60 + i * 25, SCREEN_WIDTH - 100, 20) # Half height, proportional spacing
-            self.shop_buttons.append((item_rect, item_name))
-            pygame.draw.rect(self.native_surface, COLOR_BTN, item_rect, border_radius=5)
-            self.native_surface.blit(self.font.render(item_text, False, COLOR_TEXT), (item_rect.x + 10, item_rect.y + 2)) # Adjusted text y to center
+        # Title
+        title = self.font.render("🏪 Pet Shop", True, BLACK)
+        self.native_surface.blit(title, (50, 30))
 
-        close_button = pygame.Rect(SCREEN_WIDTH // 2 - 50, SCREEN_HEIGHT - 40, 100, 20) # Half height, adjusted y
-        self.shop_buttons.append((close_button, "CLOSE"))
-        pygame.draw.rect(self.native_surface, COLOR_BTN, close_button, border_radius=5)
-        self.native_surface.blit(self.font.render("Close", False, COLOR_TEXT), (close_button.centerx - self.font.render("Close", False, COLOR_TEXT).get_width() // 2, close_button.y + 2)) # Adjusted text y to center
+        # Coins display
+        coins_bg = pygame.Rect(SCREEN_WIDTH - 120, 10, 100, 30) # Adjusted size and position
+        pygame.draw.rect(self.native_surface, YELLOW, coins_bg, border_radius=15)
+        pygame.draw.rect(self.native_surface, BLACK, coins_bg, 2, border_radius=15)
+        coins_text = self.font.render(f"💰 {self.pet.stats.coins}", True, BLACK)
+        coins_rect = coins_text.get_rect(center=coins_bg.center)
+        self.native_surface.blit(coins_text, coins_rect)
+
+        # Message box (using existing add_game_message functionality)
+        # The message will be displayed as a pop-up by the GameEngine's run loop
+
+        # Category buttons
+        mouse_pos = pygame.mouse.get_pos()
+        scaled_mouse_pos = (mouse_pos[0] / (self.screen.get_width() / self.native_surface.get_width()),
+                            mouse_pos[1] / (self.screen.get_height() / self.native_surface.get_height()))
+        
+        for btn in self.shop_category_buttons:
+            btn.update_hover(scaled_mouse_pos)
+            # Highlight selected category
+            btn_color = btn.color
+            if btn.category_id == self.selected_shop_category:
+                btn_color = tuple(min(c + 50, 255) for c in btn_color) # Brighter if selected
+            btn.draw(self.native_surface, self.font, color_override=btn_color)
+
+        # Item cards
+        for card in self.shop_item_cards:
+            card.update_hover(scaled_mouse_pos)
+            card.draw(self.native_surface, self.font, self.message_box.small_font)
+
+        # Inventory preview - simplified for now
+        inv_title = self.font.render(f"🎒 Your Inventory", True, BLACK)
+        self.native_surface.blit(inv_title, (50, SCREEN_HEIGHT - 30))
+
+    def _buy_shop_item(self, item):
+        if self.pet.stats.coins >= item['price']:
+            self.pet.stats.coins -= item['price']
+            # Add item to inventory (you'll need to implement a proper inventory system)
+            # For now, let's just use the existing db.add_item_to_inventory if applicable
+            # Or directly apply effects if items are consumed immediately
+            
+            # Example: Apply immediate effects
+            for stat_effect in ['hunger', 'energy', 'happiness', 'health']:
+                if stat_effect in item:
+                    current_value = getattr(self.pet.stats, stat_effect)
+                    setattr(self.pet.stats, stat_effect, self.pet.stats.clamp(current_value + item[stat_effect]))
+
+            self.add_game_message({"text": f"You bought {item['name']} for {item['price']} coins! 🎉", "notify": True})
+            self.db.add_item_to_inventory(item['name']) # Add to generic inventory
+        else:
+            self.add_game_message({"text": f"Not enough coins! Need {item['price'] - self.pet.stats.coins} more.", "notify": True})
 
     def handle_inventory_clicks(self, click_pos):
         for rect, name in self.inventory_buttons:
@@ -377,18 +528,23 @@ class GameEngine:
                     self.game_state = GameState.GARDENING_MINIGAME
 
     def handle_shop_clicks(self, click_pos):
+        for btn in self.shop_category_buttons:
+            if btn.is_clicked(click_pos):
+                self.selected_shop_category = btn.category_id
+                self._update_shop_item_cards()
+                self.add_game_message({"text": f"Browsing {btn.text}", "notify": False})
+                return # Category button click handled
+
+        for card in self.shop_item_cards:
+            if card.is_buy_clicked(click_pos):
+                self._buy_shop_item(card.item)
+                return # Item buy handled
+        
+        # Check for close button (this assumes a close button is part of shop_buttons still)
         for rect, name in self.shop_buttons:
             if rect.collidepoint(click_pos):
                 if name == "CLOSE":
                     self.game_state = GameState.PET_VIEW
-                else:
-                    price = SHOP_ITEMS.get(name)
-                    if price and self.pet.stats.coins >= price:
-                        self.pet.stats.coins -= price
-                        self.db.add_item_to_inventory(name)
-                        self.add_game_message({"text": f"You bought a {name}!", "notify": False})
-                    else:
-                        self.add_game_message({"text": "Not enough coins!", "notify": True})
 
     def run(self):
         running = True
