@@ -29,8 +29,6 @@ class Pet:
         self.last_update = time.time()
 
         # Animation State
-        self.idle_bob_offset = 0.0
-        self.idle_bob_timer = 0.0
         self.play_bounce_timer = 0.0
         
         # Egg cracking animation
@@ -164,8 +162,6 @@ class Pet:
         self.prev_energy = self.stats.energy
         
         # 3. Handle Animation Timers (Use real dt for smooth visuals)
-        self.idle_bob_timer = (self.idle_bob_timer + dt) % (math.pi * 2) 
-        self.idle_bob_offset = math.sin(self.idle_bob_timer * 3) * 2 
 
         # Update idle animation
         if not self.is_blinking:
@@ -401,7 +397,7 @@ class Pet:
             current_sprite_frame = self.idle_animation_frames[self.idle_frame_index]
         
         # Apply idle bobbing animation to the sprite's position
-        sprite_center_y = cy + self.idle_bob_offset
+        sprite_center_y = cy
         sprite_rect = current_sprite_frame.get_rect(center=(cx, sprite_center_y))
         surface.blit(current_sprite_frame, sprite_rect)
         
