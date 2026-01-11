@@ -289,6 +289,9 @@ class GameEngine:
         self.shop_category_buttons = []
         self.shop_item_cards = []
         self.selected_shop_category = 'snacks'
+        self.shop_scroll_offset = 0
+        self.shop_content_height = 0
+        self.shop_view_rect = pygame.Rect(50, 170, SCREEN_WIDTH - 100, SCREEN_HEIGHT - 260) # Defines the visible area for item cards
         self._setup_shop_ui() # Initialize shop UI
     
     def _setup_shop_ui(self):
@@ -316,6 +319,10 @@ class GameEngine:
         start_x = 50
         start_y = 180
 
+        max_rows = 0
+        if items:
+            max_rows = (len(items) - 1) // cards_per_row + 1
+
         for i, item in enumerate(items):
             row = i // cards_per_row
             col = i % cards_per_row
@@ -324,6 +331,8 @@ class GameEngine:
             
             card = ItemCard(item, x, y, card_width, card_height)
             self.shop_item_cards.append(card)
+        
+        self.shop_content_height = max_rows * (card_height + margin) - margin # Calculate total height of all cards
 
     def handle_feed(self):
         print(f"handle_feed called. Current pet state: {self.pet.state}")
