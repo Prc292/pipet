@@ -13,7 +13,7 @@ import datetime
 
 
 class MessageBox:
-    def __init__(self, screen, font, x, y, width, height, small_font_size=14):
+    def __init__(self, screen, font, x, y, width, height, small_font_size=14, duration=3):
         self.screen = screen
         self.font = font
         self.small_font = pygame.font.Font(None, small_font_size)
@@ -29,6 +29,8 @@ class MessageBox:
         self.state = 'minimized' # 'minimized', 'maximized'
         self.scroll_offset = 0
         self.all_lines = []
+        self.duration = duration # Initialize duration
+        self.current_pop_up_message = "" # Initialize pop-up message
 
     def _wrap_text(self, text, font, max_width):
         words = text.split(' ')
@@ -50,26 +52,28 @@ class MessageBox:
         self.messages.append(full_message)
         new_lines = self._wrap_text(full_message, self.font, self.rect.width - 2 * self.padding)
         self.all_lines.extend(new_lines)
+        # When a new message is added, make it active and set the timer for pop-up
+        self.active = True
+        self.timer = self.duration
+        self.current_pop_up_message = text # Store the message to be displayed as pop-up
 
-    def toggle_state(self, clear_unread_callback):
-        if self.state == 'minimized':
-            self.state = 'maximized'
-            self.scroll_offset = 0
-            clear_unread_callback()
-        elif self.state == 'maximized':
-            self.state = 'minimized'
-
-    def handle_scroll(self, event):
-        if self.state != 'maximized':
-            return
-        self.scroll_offset += event.y # event.y is 1 for up, -1 for down
-        if self.scroll_offset < 0:
-            self.scroll_offset = 0
-        max_scroll_offset = len(self.all_lines) - 1
-        if self.scroll_offset > max_scroll_offset:
-            self.scroll_offset = max(0, max_scroll_offset)
+    def update(self, dt):
+        if self.active:
+            self.timer -= dt
+            if self.timer <= 0:
+                self.active = False
+                self.current_pop_up_message = "" # Clear the pop-up message
 
     def draw(self):
+        # Draw the pop-up message if active and minimized
+        if self.active and self.state == 'minimized' and self.current_pop_up_message:
+            pop_up_surf = self.small_font.render(self.current_pop_up_message, True, COLOR_TEXT)
+            pop_up_rect = pop_up_surf.get_rect(center=(self.screen.get_width() // 2, 20)) # Position at top center
+            # Draw a background for the pop-up
+            pygame.draw.rect(self.screen, (0, 0, 0, 180), pop_up_rect.inflate(10, 5), border_radius=5)
+            self.screen.blit(pop_up_surf, pop_up_rect)
+        
+        # Then draw the message box normally (minimized or maximized)
         if self.state == 'minimized':
             self.draw_minimized()
         elif self.state == 'maximized':
@@ -384,6 +388,7 @@ class GameEngine:
         running = True
         while running:
             dt = self.clock.tick(FPS) / 1000.0
+            self.message_box.update(dt)
             
             self.game_time += datetime.timedelta(seconds=dt * TIME_SCALE_FACTOR)
             current_hour = self.game_time.hour
