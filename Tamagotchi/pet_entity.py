@@ -469,12 +469,6 @@ class Pet:
                 surface.blit(zzz, zzz.get_rect(center=(cx + radius + 5, cy_body_center - radius)))
                 pygame.draw.line(surface, COLOR_PET_EYES, (cx - eye_w, eye_y), (cx - eye_w // 2, eye_y), 2)
                 pygame.draw.line(surface, COLOR_PET_EYES, (cx + eye_w // 2, eye_y), (cx + eye_w, eye_y), 2)
-            elif self.eyes_open:
-                pygame.draw.ellipse(surface, COLOR_PET_EYES, (cx - eye_w * 1.5, eye_y - eye_h // 2, eye_w, eye_h))
-                pygame.draw.ellipse(surface, COLOR_PET_EYES, (cx + eye_w * 0.5, eye_y - eye_h // 2, eye_w, eye_h))
-            else:
-                pygame.draw.line(surface, COLOR_PET_EYES, (cx - eye_w * 1.5, eye_y), (cx - eye_w * 0.5, eye_y), 2)
-                pygame.draw.line(surface, COLOR_PET_EYES, (cx + eye_w * 0.5, eye_y), (cx + eye_w * 1.5, eye_y), 2)
             
             # --- Mouth ---
             mouth_y = cy_body_center + radius * scale_y // 3
