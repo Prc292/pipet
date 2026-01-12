@@ -10,6 +10,7 @@ from gardening import GardeningGame
 
 import time
 import datetime
+import shop
 
 
 class MessageBox:
@@ -204,6 +205,16 @@ class GameEngine:
         ]
         self.inventory_buttons, self.shop_buttons, self.activities_buttons = [], [], []
         self.minigame = None
+        # Shop panel will be created dynamically when opening, always scaled to native surface
+        self.shop_panel = None
+    def create_scaled_shop_panel(self):
+        ns_w, ns_h = self.native_surface.get_size()
+        # Use 90% of native surface for popup
+        w = int(ns_w * 0.9)
+        h = int(ns_h * 0.9)
+        x = (ns_w - w) // 2
+        y = (ns_h - h) // 2
+        self.shop_panel = shop.ShopPanel((x, y, w, h))
 
 
 
@@ -218,7 +229,8 @@ class GameEngine:
             self.game_state = GameState.INVENTORY_VIEW
 
     def handle_shop(self):
-                    self.game_state = GameState.SHOP_VIEW
+        self.create_scaled_shop_panel()
+        self.game_state = GameState.SHOP_VIEW
 
     def handle_activities(self):
         if self.pet.state == PetState.IDLE:
@@ -327,26 +339,6 @@ class GameEngine:
         pygame.draw.rect(self.native_surface, COLOR_BTN, close_button, border_radius=5)
         self.native_surface.blit(self.font.render("Close", False, COLOR_TEXT), (close_button.centerx - self.font.render("Close", False, COLOR_TEXT).get_width() // 2, close_button.y + 2)) # Adjusted text y to center
 
-    def draw_shop(self):
-        self.native_surface.fill(COLOR_BG)
-        title_surf = self.font.render("Shop", False, COLOR_TEXT)
-        self.native_surface.blit(title_surf, (SCREEN_WIDTH // 2 - title_surf.get_width() // 2, 20))
-        points_surf = self.font.render(f"Coins: {self.pet.stats.coins}", False, COLOR_TEXT)
-        self.native_surface.blit(points_surf, (20, 20))
-
-        self.shop_buttons.clear()
-        for i, (item_name, price) in enumerate(SHOP_ITEMS.items()):
-            item_text = f"Buy {item_name} - {price} pts"
-            item_rect = pygame.Rect(50, 60 + i * 25, SCREEN_WIDTH - 100, 20) # Half height, proportional spacing
-            self.shop_buttons.append((item_rect, item_name))
-            pygame.draw.rect(self.native_surface, COLOR_BTN, item_rect, border_radius=5)
-            self.native_surface.blit(self.font.render(item_text, False, COLOR_TEXT), (item_rect.x + 10, item_rect.y + 2)) # Adjusted text y to center
-
-        close_button = pygame.Rect(SCREEN_WIDTH // 2 - 50, SCREEN_HEIGHT - 40, 100, 20) # Half height, adjusted y
-        self.shop_buttons.append((close_button, "CLOSE"))
-        pygame.draw.rect(self.native_surface, COLOR_BTN, close_button, border_radius=5)
-        self.native_surface.blit(self.font.render("Close", False, COLOR_TEXT), (close_button.centerx - self.font.render("Close", False, COLOR_TEXT).get_width() // 2, close_button.y + 2)) # Adjusted text y to center
-
     def handle_inventory_clicks(self, click_pos):
         for rect, name in self.inventory_buttons:
             if rect.collidepoint(click_pos):
@@ -376,19 +368,9 @@ class GameEngine:
                     self.minigame = GardeningGame(self.font, self.db)
                     self.game_state = GameState.GARDENING_MINIGAME
 
-    def handle_shop_clicks(self, click_pos):
-        for rect, name in self.shop_buttons:
-            if rect.collidepoint(click_pos):
-                if name == "CLOSE":
-                    self.game_state = GameState.PET_VIEW
-                else:
-                    price = SHOP_ITEMS.get(name)
-                    if price and self.pet.stats.coins >= price:
-                        self.pet.stats.coins -= price
-                        self.db.add_item_to_inventory(name)
-                        self.add_game_message({"text": f"You bought a {name}!", "notify": False})
-                    else:
-                        self.add_game_message({"text": "Not enough coins!", "notify": True})
+    # Shop clicks are now handled by shop_panel
+    # def handle_shop_clicks(self, click_pos):
+    #     pass
 
     def run(self):
         running = True
@@ -431,7 +413,17 @@ class GameEngine:
                     self.minigame.handle_event(event, click_pos)
                 elif self.game_state == GameState.GARDENING_MINIGAME and click_pos:
                     self.minigame.handle_event(event, click_pos)
+                # SHOP_VIEW handled below
 
+            if self.game_state == GameState.SHOP_VIEW:
+                if self.shop_panel and click_pos:
+                    result = self.shop_panel.handle_events([event], mouse_pos=click_pos)
+                    if result == "close":
+                        self.game_state = GameState.PET_VIEW
+                    elif isinstance(result, dict) and result.get("type") == "buy":
+                        self.pet.stats.coins -= result["price"]
+                        self.db.add_item_to_inventory(result["item"]["name"])
+                        self.add_game_message({"text": f"You bought {result['item']['name']}!", "notify": False})
             if self.game_state == GameState.CATCH_THE_FOOD_MINIGAME:
                 self.minigame.update(current_pointer_pos)
                 self.minigame.draw(self.native_surface)
@@ -469,7 +461,7 @@ class GameEngine:
                             for rect, name, action in self.buttons:
                                 if rect.collidepoint(click_pos): action()
                     elif self.game_state == GameState.INVENTORY_VIEW: self.handle_inventory_clicks(click_pos)
-                    elif self.game_state == GameState.SHOP_VIEW: self.handle_shop_clicks(click_pos)
+                    # Shop clicks handled by shop_panel
                     elif self.game_state == GameState.ACTIVITIES_VIEW: self.handle_activities_clicks(click_pos)
             
                 if self.game_state == GameState.PET_VIEW:
@@ -512,7 +504,8 @@ class GameEngine:
                 elif self.game_state == GameState.INVENTORY_VIEW:
                         self.draw_inventory()
                 elif self.game_state == GameState.SHOP_VIEW:
-                        self.draw_shop()
+                        if self.shop_panel:
+                            self.shop_panel.draw(self.native_surface)
                 elif self.game_state == GameState.ACTIVITIES_VIEW:
                         self.draw_activities()
                 
