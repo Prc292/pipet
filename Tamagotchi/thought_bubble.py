@@ -48,9 +48,3 @@ class ThoughtBubble:
             
             # Draw text
             self.screen.blit(text_surf, (bubble_x + self.padding, bubble_y + self.padding))
-
-            # Draw thought bubble "tail" (a simple triangle)
-            tail_base_left = (pet_x - 10, pet_y - 30 + 5)
-            tail_base_right = (pet_x + 10, pet_y - 30 + 5)
-            tail_point = (pet_x, pet_y - 5)
-            pygame.draw.polygon(self.screen, self.color, [tail_base_left, tail_base_right, tail_point])

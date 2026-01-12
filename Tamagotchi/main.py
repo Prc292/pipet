@@ -10,6 +10,7 @@ from gardening import GardeningGame
 
 import time
 import datetime
+from thought_bubble import ThoughtBubble
 
 
 class MessageBox:
@@ -101,16 +102,41 @@ class MessageBox:
         s = pygame.Surface((self.rect.width, self.rect.height), pygame.SRCALPHA)
         s.fill(COLOR_MESSAGE_BOX_BG)
         self.screen.blit(s, (self.rect.x, self.rect.y))
-        y_offset = self.padding
-        start_index = len(self.all_lines) - 1 - self.scroll_offset
-        for i in range(start_index, -1, -1):
+        
+        display_lines = []
+        current_height = 0
+        # Iterate from the latest messages (end of all_lines) backwards
+        for i in range(len(self.all_lines) - 1 - self.scroll_offset, -1, -1):
             line = self.all_lines[i]
-            text_surface = self.font.render(line, False, COLOR_TEXT)
-            line_height = text_surface.get_height()
-            if self.rect.height - y_offset - line_height < 0:
+            line_height = self.font.render(line, False, COLOR_TEXT).get_height() + self.padding
+            if current_height + line_height <= self.rect.height:
+                display_lines.insert(0, line) # Insert at beginning to keep order
+                current_height += line_height
+            else:
                 break
-            self.screen.blit(text_surface, (self.rect.x + self.padding, self.rect.y + self.rect.height - y_offset - line_height))
-            y_offset += line_height + self.padding
+        
+        y_offset = self.padding
+        for line in display_lines:
+            text_surface = self.font.render(line, False, COLOR_TEXT)
+            self.screen.blit(text_surface, (self.rect.x + self.padding, self.rect.y + y_offset))
+            y_offset += text_surface.get_height() + self.padding
+
+    def handle_scroll(self, event):
+        if self.state == 'maximized':
+            # Calculate the total height of all lines
+            total_lines_height = sum(self.font.render(line, False, COLOR_TEXT).get_height() + self.padding for line in self.all_lines)
+            
+            # If content is larger than the display area, allow scrolling
+            if total_lines_height > self.rect.height:
+                # Adjust scroll_offset based on mouse wheel direction
+                # event.y is typically +1 for scroll up, -1 for scroll down
+                self.scroll_offset -= event.y * 1  # Adjust scroll speed as needed
+
+                # Clamp scroll_offset to valid range
+                # max_scroll_offset ensures we don't scroll past the top of the content
+                max_scroll_offset = len(self.all_lines) - 1
+                self.scroll_offset = max(0, min(self.scroll_offset, max_scroll_offset))
+
 
 
 class Button:
@@ -138,78 +164,39 @@ class Button:
 
 
 class ItemCard:
-    def __init__(self, item, x, y, width, height):
-        self.item = item
-        self.rect = pygame.Rect(x, y, width, height)
-        # Adjusted buy button position and size
-        self.buy_button = Button(x + 5, y + height - 30, width - 10, 25, 
-                                 f"💰 {item['price']}", GREEN, WHITE)
+    def __init__(self, item_data, x, y, font): # Added font parameter
+        self.item_data = item_data
+        self.font = font # Store the font
+        self.rect = pygame.Rect(x, y, 100, 50) # Fixed size for placeholder cards
         self.hover = False
+        self.selected = False # For selection feedback
 
-        # Load icon image
-        self.icon_image = None
-        if 'icon_path' in item:
-            full_icon_path = os.path.join(ASSETS_PATH, "shop_icons", item['icon_path'])
-            try:
-                original_icon = pygame.image.load(full_icon_path).convert_alpha()
-                icon_size = 48 # Match size used in draw method
-                self.icon_image = pygame.transform.scale(original_icon, (icon_size, icon_size))
-            except pygame.error as e:
-                print(f"Warning: Could not load icon for {item['name']} from {full_icon_path}. Error: {e}")
-                self.icon_image = None
-
-    def draw(self, screen, font, small_font):
+    def draw(self, screen, parent_font, show_details=False): # parent_font is no longer used, use self.font
         # Card background
-        color = LIGHT_GRAY if not self.hover else (250, 250, 250)
-        pygame.draw.rect(screen, color, self.rect, border_radius=10)
-        pygame.draw.rect(screen, DARK_GRAY, self.rect, 2, border_radius=10)
+        color = LIGHT_GRAY
+        if self.hover:
+            color = (250, 250, 250)
+        if self.selected:
+            color = (180, 200, 255) # Light blue for selected
 
-        # Icon
-        icon_size = 48
-        icon_rect = pygame.Rect(self.rect.x + (self.rect.width - icon_size) // 2, self.rect.y + 5, icon_size, icon_size)
-        
-        if self.icon_image:
-            screen.blit(self.icon_image, icon_rect)
-        else:
-            pygame.draw.rect(screen, GRAY, icon_rect, border_radius=5)
-            # Fallback text if icon fails to load
-            icon_text = small_font.render(f"{self.item['id']}.png", True, DARK_GRAY)
-            icon_text_rect = icon_text.get_rect(center=icon_rect.center)
-            screen.blit(icon_text, icon_text_rect)
+        pygame.draw.rect(screen, color, self.rect, border_radius=5)
+        pygame.draw.rect(screen, DARK_GRAY, self.rect, 1, border_radius=5)
 
-        # Item name (centered)
-        name_surface = font.render(self.item['name'], True, BLACK)
-        name_rect = name_surface.get_rect(centerx=self.rect.centerx, y=self.rect.y + icon_size + 12)
-        screen.blit(name_surface, name_rect)
+        # Item Name
+        name_text = self.font.render(self.item_data['name'], True, BLACK)
+        name_rect = name_text.get_rect(centerx=self.rect.centerx, y=self.rect.y + 5)
+        screen.blit(name_text, name_rect)
 
-        # Stats (centered)
-        y_offset = self.rect.y + icon_size + 12 + name_surface.get_height() + 8
-        stats = []
-        if 'hunger' in self.item and self.item['hunger']:
-            stats.append(f"🍖 H:+{self.item['hunger']}") # Abbreviated for space
-        if 'energy' in self.item and self.item['energy']:
-            stats.append(f"⚡ E:+{self.item['energy']}") # Abbreviated for space
-        if 'happiness' in self.item and self.item['happiness']:
-            stats.append(f"😊 HP:+{self.item['happiness']}") # Abbreviated for space
-        if 'health' in self.item and self.item['health']:
-            stats.append(f"❤️ HL:+{self.item['health']}") # Abbreviated for space
+        # Price
+        price_text = self.font.render(f"{self.item_data['price']} G", True, BLACK)
+        price_rect = price_text.get_rect(centerx=self.rect.centerx, y=self.rect.y + self.rect.height - price_text.get_height() - 5)
+        screen.blit(price_text, price_rect)
 
-        for stat in stats:
-            stat_surface = small_font.render(stat, True, DARK_GRAY)
-            stat_rect = stat_surface.get_rect(centerx=self.rect.centerx, y=y_offset)
-            screen.blit(stat_surface, stat_rect)
-            y_offset += 15 # Reduced spacing
-        
-        # Buy button
-        self.buy_button.draw(screen, small_font)
+    def is_clicked(self, pos):
+        return self.rect.collidepoint(pos)
 
     def update_hover(self, pos):
         self.hover = self.rect.collidepoint(pos)
-        self.buy_button.update_hover(pos)
-
-    def is_buy_clicked(self, pos):
-        return self.buy_button.is_clicked(pos)
-
 
 # --- Day/Night Cycle Colors ---
 COLOR_DAY_BG = (135, 206, 235)  # Sky Blue
@@ -239,7 +226,7 @@ class GameEngine:
         pygame.mixer.init()
 
         # The native resolution of the game
-        self.native_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+        self.native_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
         # The window screen, which will be scaled
         self.screen = pygame.display.set_mode((SCREEN_WIDTH * 2, SCREEN_HEIGHT * 2), pygame.RESIZABLE)
         
@@ -251,6 +238,7 @@ class GameEngine:
         
         self.clock = pygame.time.Clock()
         self.font = pygame.font.Font(None, 16)
+        self.small_font = pygame.font.Font(None, 12) # Smaller font for item details
 
         self.db = DatabaseManager(DB_FILE)
 
@@ -261,6 +249,7 @@ class GameEngine:
         
         self.pet = Pet(self.db, name="Bobo", message_callback=self.add_game_message)
         self.pet.load()
+        self.thought_bubble = ThoughtBubble(self.native_surface, self.font, lambda: (self.pet_center_x, self.pet_center_y))
 
         self.stat_flash_timers = {}
         self.prev_stats = PetStats()
@@ -299,86 +288,40 @@ class GameEngine:
             (self.btn_shop, "SHOP", self.handle_shop),
             (self.btn_quit, "QUIT", lambda: sys.exit()),
         ]
-        self.inventory_buttons, self.shop_buttons, self.activities_buttons = [], [], []
+        self.inventory_buttons = []
+        self.activities_buttons = []
+        self.shop_buttons = [] # Initialize shop buttons
+        self.shop_item_cards = []
+        self.selected_shop_item_card = None # Track selected item for details/purchase
+
+        # Placeholder shop: direct initialization of item cards and a close button
+        self.shop_buttons = [] # Initialize shop buttons (for close button)
+
+        # Initialize ItemCards (placeholder)
+        card_x, card_y = 50, 80
+        for item_data in SHOP_ITEMS: # SHOP_ITEMS is now a list
+            self.shop_item_cards.append(ItemCard(item_data, card_x, card_y, self.small_font))
+            card_y += 60 # Move to next row
+
+        close_button_rect = pygame.Rect(SCREEN_WIDTH // 2 - 50, SCREEN_HEIGHT - 40, 100, 20)
+        self.shop_buttons.append((close_button_rect, "CLOSE"))
+        
         self.minigame = None
 
-        # Shop UI State
-        self.shop_category_buttons = []
-        self.shop_item_cards_by_category = {}
-        self.shop_content_heights = {}
-        self.shop_scroll_offsets = {}
-        self.selected_shop_category = 'snacks'
-        # Adjusted shop_view_rect to give more vertical space
-        self.shop_view_rect = pygame.Rect(20, 100, SCREEN_WIDTH - 40, SCREEN_HEIGHT - 100 - 40) 
-        self._setup_shop_ui() # Initialize shop UI
-    
-    def _setup_shop_ui(self):
-        # Category buttons
-        button_width = 100
-        button_height = 30
-        margin_between_buttons = 5
-        
-        total_buttons_width = (button_width * len(CATEGORIES)) + (margin_between_buttons * (len(CATEGORIES) - 1))
-        start_x = (SCREEN_WIDTH - total_buttons_width) // 2
-        
-        self.shop_category_buttons.clear()
-        for i, cat in enumerate(CATEGORIES):
-            btn = Button(start_x + i * (button_width + margin_between_buttons), 60, # Centered, adjusted y
-                        button_width, button_height, cat['name'], cat['color'])
-            btn.category_id = cat['id']
-            self.shop_category_buttons.append(btn)
-        
-        # Initialize scroll offsets for each category
-        self.shop_scroll_offsets = {btn.category_id: 0 for btn in self.shop_category_buttons}
-
-        self._update_shop_item_cards()
-
-    def _update_shop_item_cards(self):
-        # Store cards per category for independent scrolling
-        self.shop_item_cards_by_category = {} 
-        self.shop_content_heights = {} # Store content height per category
-        
-        card_width = 80 # Adjusted for smaller screen
-        card_height = 120 # Adjusted for smaller screen
-        cards_per_row = 1 # Now 1 card per column
-        margin = 10 # Margin between cards vertically
-
-        # Determine start_y for cards relative to the shop_view_rect
-        start_y_cards = 0
-        
-        for category_btn in self.shop_category_buttons:
-            category_id = category_btn.category_id
-            items = SHOP_ITEMS.get(category_id, [])
+    def _buy_shop_item(self, item):
+        if self.pet.stats.coins >= item['price']:
+            self.pet.stats.coins -= item['price']
             
-            # Calculate total width for cards in this column, assuming 1 card per row for vertical stacking
-            total_cards_width_for_col = card_width 
+            # Apply immediate effects
+            for stat_effect in ['hunger', 'energy', 'happiness', 'health', 'discipline']: # Added discipline
+                if stat_effect in item and item[stat_effect] is not None: # Check for existence and not None
+                    current_value = getattr(self.pet.stats, stat_effect)
+                    setattr(self.pet.stats, stat_effect, self.pet.stats.clamp(current_value + item[stat_effect]))
 
-            # Calculate start_x for cards to center them under their category button
-            start_x_cards_for_col = category_btn.rect.x + (category_btn.rect.width - card_width) // 2
-            
-            current_category_cards = []
-            max_rows = 0
-            if items:
-                max_rows = len(items) # Each item is a new row in its column
-
-            for i, item in enumerate(items):
-                row = i
-                col = 0 # Always the first column in its category's vertical stack
-                
-                # Position relative to the top-left of the shop_view_rect
-                x = category_btn.rect.x + (category_btn.rect.width - card_width) // 2
-                y = start_y_cards + row * (card_height + margin) + self.shop_view_rect.y
-                
-                card = ItemCard(item, x, y, card_width, card_height)
-                current_category_cards.append(card)
-            
-            self.shop_item_cards_by_category[category_id] = current_category_cards
-            
-            # Recalculate shop_content_height for this category
-            if items:
-                self.shop_content_heights[category_id] = max_rows * (card_height + margin) - margin
-            else:
-                self.shop_content_heights[category_id] = 0
+            self.add_game_message({"text": f"You bought {item['name']} for {item['price']} coins! 🎉", "notify": True})
+            # self.db.add_item_to_inventory(item['name']) # Re-add if inventory system is desired
+        else:
+            self.add_game_message({"text": f"Not enough coins! Need {item['price'] - self.pet.stats.coins} more.", "notify": True})
 
     def handle_feed(self):
         print(f"handle_feed called. Current pet state: {self.pet.state}")
@@ -406,8 +349,10 @@ class GameEngine:
         if self.sound_click: self.sound_click.play()
         if self.pet.state == PetState.SLEEPING:
             self.pet.transition_to(PetState.IDLE)
+            self.thought_bubble.show_message("Yawn... Time to play!")
         else:
             self.pet.transition_to(PetState.SLEEPING)
+            self.thought_bubble.show_message("Zzzzzzz...")
 
     def update_prev_stats(self):
         self.prev_stats.fullness = self.pet.stats.fullness
@@ -495,123 +440,68 @@ class GameEngine:
         pygame.draw.rect(self.native_surface, COLOR_BTN, close_button, border_radius=5)
         self.native_surface.blit(self.font.render("Close", False, COLOR_TEXT), (close_button.centerx - self.font.render("Close", False, COLOR_TEXT).get_width() // 2, close_button.y + 2)) # Adjusted text y to center
 
+    def handle_shop_clicks(self, click_pos):
+        # Handle "Close" button click
+        for rect, name in self.shop_buttons:
+            if rect.collidepoint(click_pos) and name == "CLOSE":
+                self.game_state = GameState.PET_VIEW
+                self.selected_shop_item_card = None # Clear selection on close
+                return
+
+        # Handle "Buy" button click (if visible)
+        if self.selected_shop_item_card:
+            buy_button_rect = pygame.Rect(SCREEN_WIDTH // 2 - 70, SCREEN_HEIGHT - 70, 60, 20)
+            cancel_button_rect = pygame.Rect(SCREEN_WIDTH // 2 + 10, SCREEN_HEIGHT - 70, 60, 20)
+            
+            if buy_button_rect.collidepoint(click_pos):
+                self._buy_shop_item(self.selected_shop_item_card.item_data)
+                self.selected_shop_item_card.selected = False
+                self.selected_shop_item_card = None
+                return
+            elif cancel_button_rect.collidepoint(click_pos):
+                self.selected_shop_item_card.selected = False
+                self.selected_shop_item_card = None
+                return
+
+        # Handle ItemCard clicks
+        for card in self.shop_item_cards:
+            if card.is_clicked(click_pos):
+                if self.selected_shop_item_card == card:
+                    # Second click on the same item, assume purchase attempt
+                    # This logic is now handled by the explicit "Buy" button
+                    pass 
+                else:
+                    # Select a new item
+                    if self.selected_shop_item_card:
+                        self.selected_shop_item_card.selected = False
+                    card.selected = True
+                    self.selected_shop_item_card = card
+                return
+
     def draw_shop(self):
-        self.native_surface.fill((230, 230, 250)) # Light background
+        self.native_surface.fill((100, 100, 150)) # Simple background for placeholder shop
 
-        # Title
-        title = self.font.render("🏪 Pet Shop", True, BLACK)
-        self.native_surface.blit(title, (50, 30))
-
-        # Coins display
-        coins_bg = pygame.Rect(SCREEN_WIDTH - 120, 10, 100, 30) # Adjusted size and position
-        pygame.draw.rect(self.native_surface, YELLOW, coins_bg, border_radius=15)
-        pygame.draw.rect(self.native_surface, BLACK, coins_bg, 2, border_radius=15)
-        coins_text = self.font.render(f"💰 {self.pet.stats.coins}", True, BLACK)
-        coins_rect = coins_text.get_rect(center=coins_bg.center)
-        self.native_surface.blit(coins_text, coins_rect)
-
-        # Message box (using existing add_game_message functionality)
-        # The message will be displayed as a pop-up by the GameEngine's run loop
-
-        # Category buttons
+        # Draw Item Cards
         mouse_pos = pygame.mouse.get_pos()
         scaled_mouse_pos = (mouse_pos[0] / (self.screen.get_width() / self.native_surface.get_width()),
                             mouse_pos[1] / (self.screen.get_height() / self.native_surface.get_height()))
-        
-        for category_btn in self.shop_category_buttons:
-            category_btn.update_hover(scaled_mouse_pos)
-            # Highlight selected category
-            btn_color = category_btn.color
-            if category_btn.category_id == self.selected_shop_category:
-                btn_color = tuple(min(c + 50, 255) for c in btn_color) # Brighter if selected
-            category_btn.draw(self.native_surface, self.font, color_override=btn_color)
 
-        
-        # Item cards - drawn onto scrollable surfaces, one for each category
-        # Get mouse position for hover effects
-        # scaled_mouse_pos is already calculated in the main run loop.
+        # Coin Balance Display
+        coins_text = self.font.render(f"Coins: {self.pet.stats.coins}", True, BLACK)
+        self.native_surface.blit(coins_text, (SCREEN_WIDTH - coins_text.get_width() - 10, 10)) # Top right corner
 
-        for category_btn in self.shop_category_buttons:
-            category_id = category_btn.category_id
-            cards_in_category = self.shop_item_cards_by_category.get(category_id, [])
-            category_content_height = self.shop_content_heights.get(category_id, 0)
-
-            # Define the visible area for this category's items
-            # The top of the items starts just below the category buttons
-            column_view_rect = pygame.Rect(category_btn.rect.x, category_btn.rect.bottom + 5, # 5px margin below button
-                                          category_btn.rect.width, SCREEN_HEIGHT - category_btn.rect.bottom - 5 - 30) # 30px for inventory/bottom UI
+        for card in self.shop_item_cards:
+            card.update_hover(scaled_mouse_pos)
+            card.draw(self.native_surface, self.font)
             
-            # Ensure column_view_rect height is not negative
-            if column_view_rect.height < 0:
-                column_view_rect.height = 0
+        # Draw "Close" button
+        for rect, name in self.shop_buttons:
+            if name == "CLOSE":
+                pygame.draw.rect(self.native_surface, COLOR_BTN, rect, border_radius=5)
+                text_surf = self.font.render("Close", False, COLOR_TEXT)
+                self.native_surface.blit(text_surf, text_surf.get_rect(center=rect.center))
 
-            # Create a dedicated surface for this category's scrollable content
-            # The height of this surface is its VIEWABLE height, not total content height
-            category_scroll_surface = pygame.Surface((column_view_rect.width, column_view_rect.height), pygame.SRCALPHA)
-            category_scroll_surface.fill((230, 230, 250, 0)) # Transparent background
 
-            # Get this category's scroll offset
-            current_scroll_offset = self.shop_scroll_offsets.get(category_id, 0)
-
-            for card in cards_in_category:
-                # Adjust card's y-position relative to the category_scroll_surface
-                # The card's original y is relative to native_surface. We need its y relative to the top of its column.
-                # We need to consider the column_view_rect.y as the offset for cards' y position
-                card_y_relative_to_column_top = card.rect.y - column_view_rect.y 
-                
-                # Draw card onto the category_scroll_surface
-                # The card's x-position needs to be relative to the category_scroll_surface's top-left
-                temp_card = ItemCard(card.item, card.rect.x - column_view_rect.x, card_y_relative_to_column_top - current_scroll_offset, card.rect.width, card.rect.height)
-                
-                # Check if card is visible within the column_view_rect for hover detection
-                if column_view_rect.collidepoint(scaled_mouse_pos):
-                    # Adjust mouse_pos for hover detection relative to the card's position on the scrollable surface
-                    adjusted_mouse_pos_for_hover = (scaled_mouse_pos[0] - column_view_rect.x, scaled_mouse_pos[1] - column_view_rect.y + current_scroll_offset)
-                    temp_card.update_hover(adjusted_mouse_pos_for_hover)
-                else:
-                    temp_card.hover = False
-
-                temp_card.draw(category_scroll_surface, self.font, self.message_box.small_font)
-            
-            # Blit the visible part of the category_scroll_surface onto the native_surface
-            self.native_surface.blit(category_scroll_surface, column_view_rect.topleft)
-
-            # Draw Scroll bar for this column
-            if category_content_height > column_view_rect.height:
-                scrollbar_track_rect = pygame.Rect(column_view_rect.right + 2, column_view_rect.top, 8, column_view_rect.height)
-                pygame.draw.rect(self.native_surface, DARK_GRAY, scrollbar_track_rect, border_radius=4)
-
-                thumb_height = max(10, column_view_rect.height * column_view_rect.height // category_content_height)
-                scroll_range = category_content_height - column_view_rect.height
-                
-                thumb_y_pos = 0
-                if scroll_range > 0: # Avoid division by zero
-                    thumb_y_pos = (current_scroll_offset * (column_view_rect.height - thumb_height) // scroll_range)
-
-                scrollbar_thumb_rect = pygame.Rect(scrollbar_track_rect.x, column_view_rect.top + thumb_y_pos, scrollbar_track_rect.width, thumb_height)
-                pygame.draw.rect(self.native_surface, GRAY, scrollbar_thumb_rect, border_radius=4)
-
-        # Inventory preview - simplified for now
-        inv_title = self.font.render(f"🎒 Your Inventory", True, BLACK)
-        self.native_surface.blit(inv_title, (50, SCREEN_HEIGHT - 30))
-
-    def _buy_shop_item(self, item):
-        if self.pet.stats.coins >= item['price']:
-            self.pet.stats.coins -= item['price']
-            # Add item to inventory (you'll need to implement a proper inventory system)
-            # For now, let's just use the existing db.add_item_to_inventory if applicable
-            # Or directly apply effects if items are consumed immediately
-            
-            # Example: Apply immediate effects
-            for stat_effect in ['hunger', 'energy', 'happiness', 'health']:
-                if stat_effect in item:
-                    current_value = getattr(self.pet.stats, stat_effect)
-                    setattr(self.pet.stats, stat_effect, self.pet.stats.clamp(current_value + item[stat_effect]))
-
-            self.add_game_message({"text": f"You bought {item['name']} for {item['price']} coins! 🎉", "notify": True})
-            self.db.add_item_to_inventory(item['name']) # Add to generic inventory
-        else:
-            self.add_game_message({"text": f"Not enough coins! Need {item['price'] - self.pet.stats.coins} more.", "notify": True})
 
     def handle_inventory_clicks(self, click_pos):
         for rect, name in self.inventory_buttons:
@@ -643,47 +533,19 @@ class GameEngine:
                     self.game_state = GameState.GARDENING_MINIGAME
 
     def handle_shop_clicks(self, click_pos):
-        # Click detection for category buttons
-        for btn in self.shop_category_buttons:
-            if btn.is_clicked(click_pos):
-                self.selected_shop_category = btn.category_id
-                self._update_shop_item_cards() # Re-layout cards for new category
-                self.shop_scroll_offsets[self.selected_shop_category] = 0 # Reset scroll for new category
-                self.add_game_message({"text": f"Browsing {btn.text}", "notify": False})
-                return # Category button click handled
+        # Handle "Close" button click
+        for rect, name in self.shop_buttons:
+            if rect.collidepoint(click_pos) and name == "CLOSE":
+                self.game_state = GameState.PET_VIEW
+                self.selected_shop_item_card = None # Clear selection on close
+                return
 
-        # Click detection for item cards in the currently selected category
-        cards_in_selected_category = self.shop_item_cards_by_category.get(self.selected_shop_category, [])
-        
-        # Find the currently selected category button
-        selected_category_btn = None
-        for btn in self.shop_category_buttons:
-            if btn.category_id == self.selected_shop_category:
-                selected_category_btn = btn
-                break
-
-        if selected_category_btn:
-            # Define the visible area for this category's items
-            column_view_rect = pygame.Rect(selected_category_btn.rect.x, selected_category_btn.rect.bottom + 5,
-                                          selected_category_btn.rect.width, SCREEN_HEIGHT - selected_category_btn.rect.bottom - 5 - 30)
-            
-            # Adjust click_pos to be relative to the scrollable surface for accurate card collision
-            # Adjusted click_pos to be relative to the column_view_rect's top-left for internal card collision checks
-            relative_click_pos = (click_pos[0] - column_view_rect.x, click_pos[1] - column_view_rect.y + self.shop_scroll_offsets[self.selected_shop_category])
-            
-            for card in cards_in_selected_category:
-                # Check if the raw click is within the column_view_rect (visible area)
-                if column_view_rect.collidepoint(click_pos):
-                    # Now, check if the buy button of the card (adjusted for scroll and relative to column) was clicked
-                    # The card's rect is already in absolute screen coordinates, so we need to adjust the click_pos
-                    # to be relative to the card for its internal is_buy_clicked method.
-                    
-                    # Create a temporary rect for the card in column_view_rect's coordinate system, adjusted for scroll
-                    card_in_column_coords = pygame.Rect(card.rect.x - column_view_rect.x, card.rect.y - column_view_rect.y - self.shop_scroll_offsets[self.selected_shop_category], card.rect.width, card.rect.height);
-
-                    if card_in_column_coords.collidepoint(relative_click_pos) and card.is_buy_clicked(relative_click_pos):
-                        self._buy_shop_item(card.item)
-                        return # Item buy handled
+        # Handle ItemCard clicks (selection and immediate purchase for simplicity)
+        for card in self.shop_item_cards:
+            if card.is_clicked(click_pos):
+                self._buy_shop_item(card.item_data)
+                self.selected_shop_item_card = None # Clear selection after purchase
+                return
 
 
     def run(self):
@@ -691,6 +553,7 @@ class GameEngine:
         while running:
             dt = self.clock.tick(FPS) / 1000.0
             self.message_box.update(dt)
+            self.thought_bubble.update(dt)
             
             self.game_time += datetime.timedelta(seconds=dt * TIME_SCALE_FACTOR)
             current_hour = self.game_time.hour
@@ -714,35 +577,6 @@ class GameEngine:
                 if event.type == pygame.MOUSEWHEEL:
                     if self.message_box.state == 'maximized':
                         self.message_box.handle_scroll(event)
-                    elif self.game_state == GameState.SHOP_VIEW:
-                        # Determine which category column the mouse is over
-                        mouse_x, mouse_y = scaled_mouse_pos
-                        
-                        hovered_category_btn = None
-                        for category_btn in self.shop_category_buttons:
-                            # Define a simplified rect for hover detection over the column's visible area
-                            # This needs to include the button itself and the items area below it.
-                            temp_column_area_rect = pygame.Rect(category_btn.rect.x, category_btn.rect.y,
-                                                               category_btn.rect.width, SCREEN_HEIGHT - category_btn.rect.y)
-                            
-                            if temp_column_area_rect.collidepoint(mouse_x, mouse_y):
-                                hovered_category_btn = category_btn
-                                break
-                        
-                        if hovered_category_btn:
-                            category_id = hovered_category_btn.category_id
-                            # Define the visible area for this category's items (same as in draw_shop)
-                            column_view_rect = pygame.Rect(hovered_category_btn.rect.x, hovered_category_btn.rect.bottom + 5,
-                                                          hovered_category_btn.rect.width, SCREEN_HEIGHT - hovered_category_btn.rect.bottom - 5 - 30)
-                            
-                            if column_view_rect.height < 0:
-                                column_view_rect.height = 0
-
-                            current_scroll_offset = self.shop_scroll_offsets.get(category_id, 0)
-                            category_content_height = self.shop_content_heights.get(category_id, 0)
-
-                            new_scroll_offset = current_scroll_offset - event.y * 10 # Scroll faster
-                            self.shop_scroll_offsets[category_id] = max(0, min(new_scroll_offset, category_content_height - column_view_rect.height))
 
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     scale_x = self.screen.get_width() / self.native_surface.get_width()
@@ -824,6 +658,7 @@ class GameEngine:
                 if self.game_state == GameState.PET_VIEW:
                         cx, cy = self.pet_center_x, self.pet_center_y
                         self.pet.draw(self.native_surface, cx, cy, self.font)
+                        self.thought_bubble.draw()
                         
                         self.draw_bar(20, 30, self.pet.stats.happiness, (255, 200, 0), "Happiness")
                         self.draw_bar(110, 30, self.pet.stats.fullness, (0, 255, 0), "Fullness")
