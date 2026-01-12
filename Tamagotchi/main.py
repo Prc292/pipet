@@ -65,7 +65,7 @@ class ModernRetroButton:
         gradient_rect = draw_rect.copy()
         gradient_rect.height //= 2
         light_colour = tuple(min(255, c + 20) for c in self.color)
-        pygame.draw.rect(surface, light_color, gradient_rect, border_radius=BUTTON_BORDER_RADIUS)
+        pygame.draw.rect(surface, light_colour, gradient_rect, border_radius=BUTTON_BORDER_RADIUS)
         
         # Glass overlay
         glass_surface = pygame.Surface((draw_rect.width - 8, draw_rect.height // 3), pygame.SRCALPHA)
@@ -170,11 +170,11 @@ class PixelStatBar:
         
         for offset_x, offset_y in [(-1, -1), (1, -1), (-1, 1), (1, 1)]:
             outline_surface = font.render(value_text, True, RETRO_LIGHT)
-            surface.blit(outline_surf, (self.rect.centerx - value_surf.get_width() // 2 + offset_x,
-                                       self.rect.centery - value_surf.get_height() // 2 + offset_y))
+            surface.blit(outline_surface, (self.rect.centerx - value_surface.get_width() // 2 + offset_x,
+                                       self.rect.centery - value_surface.get_height() // 2 + offset_y))
         
-        surface.blit(value_surf, (self.rect.centerx - value_surf.get_width() // 2,
-                                 self.rect.centery - value_surf.get_height() // 2))
+        surface.blit(value_surface, (self.rect.centerx - value_surface.get_width() // 2,
+                                 self.rect.centery - value_surface.get_height() // 2))
 
 
 class MessageBubble:
@@ -217,14 +217,15 @@ class MessageBubble:
             alpha = int(self.timer / 0.3 * 255)
         
                     # Bubble
-        bubble_surface = pygame.Surface((bubble_width, bubble_height), pygame.SRCALPHA)        pygame.draw.rect(bubble_surf, (*RETRO_LIGHT, alpha), bubble_surf.get_rect(), border_radius=15)
-        pygame.draw.rect(bubble_surf, (*RETRO_DARK, alpha), bubble_surf.get_rect(), 4, border_radius=15)
+        bubble_surface = pygame.Surface((bubble_width, bubble_height), pygame.SRCALPHA)
+        pygame.draw.rect(bubble_surface, (*RETRO_LIGHT, alpha), bubble_surface.get_rect(), border_radius=15)
+        pygame.draw.rect(bubble_surface, (*RETRO_DARK, alpha), bubble_surface.get_rect(), 4, border_radius=15)
         
-        surface.blit(bubble_surf, bubble_rect)
+        surface.blit(bubble_surface, bubble_rect)
         
         # Text
-        text_surf.set_alpha(alpha)
-        surface.blit(text_surf, (bubble_rect.x + padding, bubble_rect.y + padding))
+        text_surface.set_alpha(alpha)
+        surface.blit(text_surface, (bubble_rect.x + padding, bubble_rect.y + padding))
 
 
 class ModernMessageLog:
@@ -257,21 +258,21 @@ class ModernMessageLog:
             text = f"📨 Messages"
             if self.unread_count > 0:
                 text += f" ({self.unread_count})"
-            text_surf = font.render(text, True, RETRO_LIGHT)
-            tab_surface.blit(text_surf, (self.minimized_rect.width // 2 - text_surf.get_width() // 2,
-                                     self.minimized_rect.height // 2 - text_surf.get_height() // 2))
+            text_surface = font.render(text, True, RETRO_LIGHT)
+            tab_surface.blit(text_surface, (self.minimized_rect.width // 2 - text_surface.get_width() // 2,
+                                     self.minimized_rect.height // 2 - text_surface.get_height() // 2))
             
             surface.blit(tab_surface, self.minimized_rect)
         else:
             log_surface = pygame.Surface((self.rect.width, self.rect.height), pygame.SRCALPHA)
-            log_surf.fill((*RETRO_LIGHT, 240))
+            log_surface.fill((*RETRO_LIGHT, 240))
             pygame.draw.rect(log_surface, RETRO_DARK, log_surface.get_rect(), 4, border_radius=10)
             
             header_surface = small_font.render("MESSAGE LOG", True, RETRO_DARK)
             log_surface.blit(header_surface, (10, 10))
             
-            close_text = small_font.render("[TAP TO CLOSE]", True, RETRO_PURPLE)
-            log_surf.blit(close_text, (self.rect.width - close_text.get_width() - 10, 10))
+            close_surface = small_font.render("[TAP TO CLOSE]", True, RETRO_PURPLE)
+            log_surface.blit(close_surface, (self.rect.width - close_surface.get_width() - 10, 10))
             
             y_offset = 50
             visible_messages = self.messages[-12:]
@@ -284,13 +285,13 @@ class ModernMessageLog:
                     msg_text = msg_text[:60] + "..."
                     msg_surface = small_font.render(msg_text, True, RETRO_DARK)
                 
-                log_surf.blit(msg_surf, (10, y_offset))
+                log_surface.blit(msg_surface, (10, y_offset))
                 y_offset += 35
                 
                 if y_offset > self.rect.height - 20:
                     break
             
-            surface.blit(log_surf, self.rect)
+            surface.blit(log_surface, self.rect)
 
 
 # ==================== GAME ENGINE ====================
