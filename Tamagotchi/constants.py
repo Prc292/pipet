@@ -12,12 +12,6 @@ POINTS_PER_WIN = 10
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ASSETS_PATH = os.path.join(BASE_DIR, "assets")
 
-# --- SHOP (Prices in Coins) ---
-SHOP_ITEMS = [
-    {'id': 'placeholder_food', 'name': 'Placeholder Food', 'price': 10, 'hunger': 20, 'energy': 5, 'happiness': 5, 'description': 'A generic food item.'},
-    {'id': 'placeholder_toy', 'name': 'Placeholder Toy', 'price': 20, 'happiness': 15, 'discipline': 5, 'description': 'A generic toy item.'},
-]
-
 # Removed CATEGORIES as they are no longer used.
 
 # --- RETRO UI PALETTE ---

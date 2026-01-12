@@ -5,7 +5,6 @@ from dataclasses import dataclass
 class GameState(Enum):
     PET_VIEW = auto()
     INVENTORY_VIEW = auto()
-    SHOP_VIEW = auto()
     ACTIVITIES_VIEW = auto()
     CATCH_THE_FOOD_MINIGAME = auto()
     GARDENING_MINIGAME = auto()

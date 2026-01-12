@@ -7,6 +7,7 @@ from database import DatabaseManager
 from pet_entity import Pet
 from minigames import CatchTheFoodMinigame
 from gardening import GardeningGame
+from shop import TamagotchiShop
 
 import time
 import datetime
@@ -163,41 +164,6 @@ class Button:
         self.hover = self.rect.collidepoint(pos)
 
 
-class ItemCard:
-    def __init__(self, item_data, x, y, font): # Added font parameter
-        self.item_data = item_data
-        self.font = font # Store the font
-        self.rect = pygame.Rect(x, y, 100, 50) # Fixed size for placeholder cards
-        self.hover = False
-        self.selected = False # For selection feedback
-
-    def draw(self, screen, parent_font, show_details=False): # parent_font is no longer used, use self.font
-        # Card background
-        color = LIGHT_GRAY
-        if self.hover:
-            color = (250, 250, 250)
-        if self.selected:
-            color = (180, 200, 255) # Light blue for selected
-
-        pygame.draw.rect(screen, color, self.rect, border_radius=5)
-        pygame.draw.rect(screen, DARK_GRAY, self.rect, 1, border_radius=5)
-
-        # Item Name
-        name_text = self.font.render(self.item_data['name'], True, BLACK)
-        name_rect = name_text.get_rect(centerx=self.rect.centerx, y=self.rect.y + 5)
-        screen.blit(name_text, name_rect)
-
-        # Price
-        price_text = self.font.render(f"{self.item_data['price']} G", True, BLACK)
-        price_rect = price_text.get_rect(centerx=self.rect.centerx, y=self.rect.y + self.rect.height - price_text.get_height() - 5)
-        screen.blit(price_text, price_rect)
-
-    def is_clicked(self, pos):
-        return self.rect.collidepoint(pos)
-
-    def update_hover(self, pos):
-        self.hover = self.rect.collidepoint(pos)
-
 # --- Day/Night Cycle Colors ---
 COLOR_DAY_BG = (135, 206, 235)  # Sky Blue
 COLOR_DUSK_BG = (255, 165, 0)   # Orange
@@ -244,8 +210,6 @@ class GameEngine:
 
         self.message_box = MessageBox(self.native_surface, self.font, 290, 50, 170, 150)
         self.unread_messages_count = 0
-        # Initial message will now be handled by the Pet's loading/initialization
-        # self.message_box.add_message("Welcome!")
         
         self.pet = Pet(self.db, name="Bobo", message_callback=self.add_game_message)
         self.pet.load()
@@ -290,38 +254,8 @@ class GameEngine:
         ]
         self.inventory_buttons = []
         self.activities_buttons = []
-        self.shop_buttons = [] # Initialize shop buttons
-        self.shop_item_cards = []
-        self.selected_shop_item_card = None # Track selected item for details/purchase
-
-        # Placeholder shop: direct initialization of item cards and a close button
-        self.shop_buttons = [] # Initialize shop buttons (for close button)
-
-        # Initialize ItemCards (placeholder)
-        card_x, card_y = 50, 80
-        for item_data in SHOP_ITEMS: # SHOP_ITEMS is now a list
-            self.shop_item_cards.append(ItemCard(item_data, card_x, card_y, self.small_font))
-            card_y += 60 # Move to next row
-
-        close_button_rect = pygame.Rect(SCREEN_WIDTH // 2 - 50, SCREEN_HEIGHT - 40, 100, 20)
-        self.shop_buttons.append((close_button_rect, "CLOSE"))
         
         self.minigame = None
-
-    def _buy_shop_item(self, item):
-        if self.pet.stats.coins >= item['price']:
-            self.pet.stats.coins -= item['price']
-            
-            # Apply immediate effects
-            for stat_effect in ['hunger', 'energy', 'happiness', 'health', 'discipline']: # Added discipline
-                if stat_effect in item and item[stat_effect] is not None: # Check for existence and not None
-                    current_value = getattr(self.pet.stats, stat_effect)
-                    setattr(self.pet.stats, stat_effect, self.pet.stats.clamp(current_value + item[stat_effect]))
-
-            self.add_game_message({"text": f"You bought {item['name']} for {item['price']} coins! 🎉", "notify": True})
-            # self.db.add_item_to_inventory(item['name']) # Re-add if inventory system is desired
-        else:
-            self.add_game_message({"text": f"Not enough coins! Need {item['price'] - self.pet.stats.coins} more.", "notify": True})
 
     def handle_feed(self):
         print(f"handle_feed called. Current pet state: {self.pet.state}")
@@ -329,7 +263,11 @@ class GameEngine:
             self.game_state = GameState.INVENTORY_VIEW
 
     def handle_shop(self):
-                    self.game_state = GameState.SHOP_VIEW
+        shop = TamagotchiShop()
+        shop.run()
+        # After the shop is closed, we might want to refresh the main screen
+        # or handle any items bought, if the shop returns some state.
+        # For now, it just returns control.
 
     def handle_activities(self):
         if self.pet.state == PetState.IDLE:
@@ -440,69 +378,6 @@ class GameEngine:
         pygame.draw.rect(self.native_surface, COLOR_BTN, close_button, border_radius=5)
         self.native_surface.blit(self.font.render("Close", False, COLOR_TEXT), (close_button.centerx - self.font.render("Close", False, COLOR_TEXT).get_width() // 2, close_button.y + 2)) # Adjusted text y to center
 
-    def handle_shop_clicks(self, click_pos):
-        # Handle "Close" button click
-        for rect, name in self.shop_buttons:
-            if rect.collidepoint(click_pos) and name == "CLOSE":
-                self.game_state = GameState.PET_VIEW
-                self.selected_shop_item_card = None # Clear selection on close
-                return
-
-        # Handle "Buy" button click (if visible)
-        if self.selected_shop_item_card:
-            buy_button_rect = pygame.Rect(SCREEN_WIDTH // 2 - 70, SCREEN_HEIGHT - 70, 60, 20)
-            cancel_button_rect = pygame.Rect(SCREEN_WIDTH // 2 + 10, SCREEN_HEIGHT - 70, 60, 20)
-            
-            if buy_button_rect.collidepoint(click_pos):
-                self._buy_shop_item(self.selected_shop_item_card.item_data)
-                self.selected_shop_item_card.selected = False
-                self.selected_shop_item_card = None
-                return
-            elif cancel_button_rect.collidepoint(click_pos):
-                self.selected_shop_item_card.selected = False
-                self.selected_shop_item_card = None
-                return
-
-        # Handle ItemCard clicks
-        for card in self.shop_item_cards:
-            if card.is_clicked(click_pos):
-                if self.selected_shop_item_card == card:
-                    # Second click on the same item, assume purchase attempt
-                    # This logic is now handled by the explicit "Buy" button
-                    pass 
-                else:
-                    # Select a new item
-                    if self.selected_shop_item_card:
-                        self.selected_shop_item_card.selected = False
-                    card.selected = True
-                    self.selected_shop_item_card = card
-                return
-
-    def draw_shop(self):
-        self.native_surface.fill((100, 100, 150)) # Simple background for placeholder shop
-
-        # Draw Item Cards
-        mouse_pos = pygame.mouse.get_pos()
-        scaled_mouse_pos = (mouse_pos[0] / (self.screen.get_width() / self.native_surface.get_width()),
-                            mouse_pos[1] / (self.screen.get_height() / self.native_surface.get_height()))
-
-        # Coin Balance Display
-        coins_text = self.font.render(f"Coins: {self.pet.stats.coins}", True, BLACK)
-        self.native_surface.blit(coins_text, (SCREEN_WIDTH - coins_text.get_width() - 10, 10)) # Top right corner
-
-        for card in self.shop_item_cards:
-            card.update_hover(scaled_mouse_pos)
-            card.draw(self.native_surface, self.font)
-            
-        # Draw "Close" button
-        for rect, name in self.shop_buttons:
-            if name == "CLOSE":
-                pygame.draw.rect(self.native_surface, COLOR_BTN, rect, border_radius=5)
-                text_surf = self.font.render("Close", False, COLOR_TEXT)
-                self.native_surface.blit(text_surf, text_surf.get_rect(center=rect.center))
-
-
-
     def handle_inventory_clicks(self, click_pos):
         for rect, name in self.inventory_buttons:
             if rect.collidepoint(click_pos):
@@ -531,22 +406,6 @@ class GameEngine:
                 elif name == "Gardening":
                     self.minigame = GardeningGame(self.font, self.db)
                     self.game_state = GameState.GARDENING_MINIGAME
-
-    def handle_shop_clicks(self, click_pos):
-        # Handle "Close" button click
-        for rect, name in self.shop_buttons:
-            if rect.collidepoint(click_pos) and name == "CLOSE":
-                self.game_state = GameState.PET_VIEW
-                self.selected_shop_item_card = None # Clear selection on close
-                return
-
-        # Handle ItemCard clicks (selection and immediate purchase for simplicity)
-        for card in self.shop_item_cards:
-            if card.is_clicked(click_pos):
-                self._buy_shop_item(card.item_data)
-                self.selected_shop_item_card = None # Clear selection after purchase
-                return
-
 
     def run(self):
         running = True
@@ -635,7 +494,6 @@ class GameEngine:
                             for rect, name, action in self.buttons:
                                 if rect.collidepoint(click_pos): action()
                     elif self.game_state == GameState.INVENTORY_VIEW: self.handle_inventory_clicks(click_pos)
-                    elif self.game_state == GameState.SHOP_VIEW: self.handle_shop_clicks(click_pos)
                     elif self.game_state == GameState.ACTIVITIES_VIEW: self.handle_activities_clicks(click_pos)
             
                 if self.game_state == GameState.PET_VIEW:
@@ -678,8 +536,6 @@ class GameEngine:
 
                 elif self.game_state == GameState.INVENTORY_VIEW:
                         self.draw_inventory()
-                elif self.game_state == GameState.SHOP_VIEW:
-                        self.draw_shop()
                 elif self.game_state == GameState.ACTIVITIES_VIEW:
                         self.draw_activities()
                 
