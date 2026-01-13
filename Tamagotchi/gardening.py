@@ -1,6 +1,7 @@
 import pygame
 import time
 from constants import *
+from ui_components import ModernRetroButton
 
 class GardeningGame:
     def __init__(self, font, db):
@@ -28,9 +29,28 @@ class GardeningGame:
             pygame.Rect(280, 250, 150, 150),
         ]
         self.selected_plot = None
-        self.close_button = pygame.Rect(SCREEN_WIDTH // 2 - 50, SCREEN_HEIGHT - 40, 100, 30)
+
+        # Close button using ModernRetroButton
+        self.close_button = ModernRetroButton(
+            x=SCREEN_WIDTH // 2 - BUTTON_WIDTH // 2,
+            y=SCREEN_HEIGHT - BUTTON_HEIGHT - 20,
+            width=BUTTON_WIDTH,
+            height=BUTTON_HEIGHT,
+            text="CLOSE",
+            color=RETRO_PINK,
+            icon="❌",
+            on_click=self.on_close_click
+        )
+
+    def on_close_click(self):
+        self.is_over = True
 
     def handle_event(self, event, raw_pos):
+        # Handle close button click events
+        if self.close_button.handle_event(raw_pos, event.type):
+            return # Event handled by button, minigame will close
+        
+        # Now handle other click interactions, only if a mouse button was pressed
         click_pos = None
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             click_pos = raw_pos
@@ -38,10 +58,6 @@ class GardeningGame:
             click_pos = raw_pos
 
         if click_pos:
-            if self.close_button.collidepoint(click_pos):
-                self.is_over = True
-                return
-
             for i, rect in enumerate(self.plot_rects):
                 if rect.collidepoint(click_pos):
                     self.selected_plot = i + 1
@@ -117,6 +133,5 @@ class GardeningGame:
                 option_surf = self.font.render("Water Plant", False, COLOR_TEXT)
                 surface.blit(option_surf, (rect.x + 10, rect.y + 80))
         
-        pygame.draw.rect(surface, COLOR_BTN, self.close_button, border_radius=5)
-        close_text = self.font.render("Close", False, COLOR_TEXT)
-        surface.blit(close_text, close_text.get_rect(center=self.close_button.center))
+        # Draw the ModernRetroButton
+        self.close_button.draw(surface, self.font)

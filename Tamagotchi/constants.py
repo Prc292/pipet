@@ -6,6 +6,7 @@ SCREEN_HEIGHT = 800
 FPS = 30
 DB_FILE = "pet_life.db"
 TIME_SCALE_FACTOR = 1 # 1 = real time, 10 = 10x faster!
+SAVE_INTERVAL = 300 # Save every 5 minutes (300 seconds)
 POINTS_PER_WIN = 10
 
 # Base directory for assets, relative to this file's location

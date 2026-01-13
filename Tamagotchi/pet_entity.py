@@ -27,15 +27,11 @@ class Pet:
         self.birth_time = time.time() 
         self.last_update = time.time()
 
-        # Animation State
+        # Animation State (initialized before _load_sprites)
         self.play_bounce_timer = 0.0
         self.idle_bob_offset = 0.0
-        
-        # Egg cracking animation
-        self.crack_level = 0.0
+        self.crack_level = 0.0 # Egg cracking animation
 
-        self._load_sprites()
-        
         # Animation variables
         self.idle_animation_frames = []
         self.idle_frame_index = 0
@@ -58,23 +54,7 @@ class Pet:
         self.sleep_animation_timer = 0
         self.sleep_animation_speed = 0.2  # 200ms per frame
 
-        # Parse spritesheets
-        sprite_width = 64
-        sprite_height = 64
-        sheet_width_idle = self.sprite_idle.get_width()
-        for x in range(0, sheet_width_idle, sprite_width):
-            frame = self.sprite_idle.subsurface(pygame.Rect(x, 0, sprite_width, sprite_height))
-            self.idle_animation_frames.append(frame)
-
-        sheet_width_blink = self.sprite_blink.get_width()
-        for x in range(0, sheet_width_blink, sprite_width):
-            frame = self.sprite_blink.subsurface(pygame.Rect(x, 0, sprite_width, sprite_height))
-            self.blink_animation_frames.append(frame)
-
-        sheet_width_sleeping = self.sprite_sleeping.get_width()
-        for x in range(0, sheet_width_sleeping, sprite_width):
-            frame = self.sprite_sleeping.subsurface(pygame.Rect(x, 0, sprite_width, sprite_height))
-            self.sleep_animation_frames.append(frame)
+        self._load_sprites()
         
         # For tracking previous stats to trigger low stat messages once
         self.prev_fullness = self.stats.fullness
