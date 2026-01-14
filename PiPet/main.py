@@ -11,6 +11,7 @@ from ui_components import ModernRetroButton
 from typing import Tuple, Optional, Callable # Still needed for other classes in main.py
 import datetime
 import time
+import json
 
 # Import your existing modules
 from constants import *
@@ -229,7 +230,37 @@ class GameEngine:
         
         if text:
             self.message_log.add_message(text)
-    
+
+    def _get_world_sprite(self, sprite_name: str) -> Optional[pygame.Surface]:
+        """
+        Extracts a specific sprite from the world spritesheet based on its name.
+        Assumes sprite_name corresponds to a 'slice' name in the JSON data.
+        """
+        for slice_data in self.world_sprite_data["meta"]["slices"]:
+            if slice_data["name"] == sprite_name:
+                # Get the bounding box from the 'bounds' key within the first keyframe
+                bounds = slice_data["keys"][0]["bounds"]
+                x, y, w, h = bounds["x"], bounds["y"], bounds["w"], bounds["h"]
+                original_sprite = self.world_spritesheet_image.subsurface(pygame.Rect(x, y, w, h))
+                return original_sprite
+        return None
+
+    def _get_plant_animation_frames(self, animation_prefix: str) -> List[pygame.Surface]:
+        """
+        Extracts all frames for a given animation prefix from the plant spritesheet.
+        Assumes animation frames are named with a common prefix and a numerical suffix (e.g., "GroupPlants_00000 0.png").
+        """
+        frames = []
+        # Sort frame names to ensure correct animation order
+        sorted_frame_names = sorted([name for name in self.plant_sprite_data["frames"].keys() if name.startswith(animation_prefix)],
+                                    key=lambda x: int(x.split(" ")[-1].split(".")[0]))
+
+        for frame_name in sorted_frame_names:
+            frame_data = self.plant_sprite_data["frames"][frame_name]["frame"]
+            x, y, w, h = frame_data["x"], frame_data["y"], frame_data["w"], frame_data["h"]
+            frames.append(self.plant_spritesheet_image.subsurface(pygame.Rect(x, y, w, h)))
+        return frames
+
     def __init__(self):
         pygame.init()
         pygame.mixer.init()
@@ -242,7 +273,23 @@ class GameEngine:
         self.background = pygame.image.load(bg_path).convert()
         self.background = pygame.transform.scale(self.background, (SCREEN_WIDTH, SCREEN_HEIGHT))
         pygame.display.set_caption("PiPet - Retro Edition")
+
+        # Load world sprite sheet and data
+        self.world_spritesheet_image = pygame.image.load(os.path.join(base_path, "assets", "sprites", "world", "Cave - Platforms-sheet.png")).convert_alpha()
+        with open(os.path.join(base_path, "assets", "sprites", "world", "Cave - Platforms.json"), 'r') as f:
+            self.world_sprite_data = json.load(f)
+
+        # Load plant sprite sheet and data
+        self.plant_spritesheet_image = pygame.image.load(os.path.join(base_path, "assets", "sprites", "world", "plant_sway1-sheet.png")).convert_alpha()
+        with open(os.path.join(base_path, "assets", "sprites", "world", "plant_sway1.json"), 'r') as f:
+            self.plant_sprite_data = json.load(f)
         
+        # Plant animation state
+        self.plant_animation_frames = self._get_plant_animation_frames("GroupPlants_00000")
+        self.plant_frame_index = 0
+        self.plant_animation_timer = 0.0
+        self.plant_animation_speed = 0.15 # 150ms per frame
+
         self.clock = pygame.time.Clock()
         
         # Fonts - larger for 1280x800
@@ -451,6 +498,18 @@ class GameEngine:
         """Draw main pet view"""
         # Pet
         self.pet.draw(self.screen, self.pet_center_x, self.pet_center_y, self.font_large)
+
+        # Draw block_5 at (680, 348)
+        block_5_sprite = self._get_world_sprite("block_5")
+        if block_5_sprite:
+            block_5_rect = block_5_sprite.get_rect(center=(680, 348))
+            self.screen.blit(block_5_sprite, block_5_rect)
+
+        # Draw block_6 at (500, 450)
+        block_6_sprite = self._get_world_sprite("block_6")
+        if block_6_sprite:
+            block_6_rect = block_6_sprite.get_rect(center=(500, 450))
+            self.screen.blit(block_6_sprite, block_6_rect)
         
         # Thought bubble
         self.bubble.draw(self.screen, self.font_small)
@@ -644,6 +703,13 @@ class GameEngine:
             # Update pet and UI
             if self.game_state == GameState.PET_VIEW:
                 self.pet.update(dt, current_hour)
+                
+                # Update plant animation
+                if self.plant_animation_frames:
+                    self.plant_animation_timer += dt
+                    if self.plant_animation_timer >= self.plant_animation_speed:
+                        self.plant_animation_timer = 0
+                        self.plant_frame_index = (self.plant_frame_index + 1) % len(self.plant_animation_frames)
                 
                 # Check for stat increases and flash
                 if self.pet.stats.happiness > self.prev_stats.happiness:

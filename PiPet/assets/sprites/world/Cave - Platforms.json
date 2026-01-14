@@ -1,0 +1,37 @@
+{ "frames": {
+   "Cave - Platforms.png": {
+    "frame": { "x": 0, "y": 0, "w": 512, "h": 512 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 512, "h": 512 },
+    "sourceSize": { "w": 512, "h": 512 },
+    "duration": 100
+   }
+ },
+ "meta": {
+  "app": "https://www.aseprite.org/",
+  "version": "1.x-dev",
+  "image": "Cave - Platforms-sheet.png",
+  "format": "RGBA8888",
+  "size": { "w": 512, "h": 512 },
+  "scale": "1",
+  "frameTags": [
+  ],
+  "layers": [
+   { "name": "Layer", "opacity": 255, "blendMode": "normal" }
+  ],
+  "slices": [
+   { "name": "block_11", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 364, "y": 439, "w": 102, "h": 59 } }] },
+   { "name": "block_10", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 315, "y": 392, "w": 185, "h": 40 } }] },
+   { "name": "block_9", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 136, "y": 444, "w": 202, "h": 65 } }] },
+   { "name": "block_8", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 151, "y": 357, "w": 137, "h": 83 } }] },
+   { "name": "block_7", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 141, "y": 319, "w": 157, "h": 35 } }] },
+   { "name": "block_6", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 26, "y": 318, "w": 103, "h": 186 } }] },
+   { "name": "block_5", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 311, "y": 195, "w": 201, "h": 186 } }] },
+   { "name": "block_4", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 14, "y": 109, "w": 291, "h": 184 } }] },
+   { "name": "block_3", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 336, "y": 23, "w": 163, "h": 168 } }] },
+   { "name": "block_2", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 119, "y": 6, "w": 202, "h": 101 } }] },
+   { "name": "block_1", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 12, "y": 9, "w": 106, "h": 99 } }] }
+  ]
+ }
+}
