@@ -235,6 +235,12 @@ class GameEngine:
         pygame.mixer.init()
         
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        # Load background image
+        base_path = os.path.dirname(__file__)
+        bg_path = os.path.join(base_path, "assets", "backgrounds", "background.png")
+
+        self.background = pygame.image.load(bg_path).convert()
+        self.background = pygame.transform.scale(self.background, (SCREEN_WIDTH, SCREEN_HEIGHT))
         pygame.display.set_caption("PiPet - Retro Edition")
         
         self.clock = pygame.time.Clock()
@@ -665,7 +671,7 @@ class GameEngine:
                 self.add_game_message("Game saved!")
             
             # Draw
-            self.screen.fill(bg_color)
+            self.screen.blit(self.background, (0, 0))
             
             if self.game_state == GameState.PET_VIEW:
                 self.draw_main_view()
