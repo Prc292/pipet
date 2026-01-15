@@ -233,10 +233,15 @@ class Editor:
     def save_scene(self):
         scene_data = []
         for obj in self.placed_objects:
-            scene_data.append({
+            data = {
                 "name": obj["name"],
-                "pos": [obj["rect"].x, obj["rect"].y]
-            })
+                "pos": [obj["rect"].x, obj["rect"].y],
+                "size": [obj["rect"].width, obj["rect"].height]
+            }
+            # Add collision info for block_* assets
+            if "block_" in obj["name"]:
+                data["collision"] = {"top": 20}  # collision zone height on top of the block
+            scene_data.append(data)
         
         with open(SAVE_FILE, 'w') as f:
             json.dump(scene_data, f, indent=4)

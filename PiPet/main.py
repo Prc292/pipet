@@ -394,12 +394,32 @@ class GameEngine:
         # Pet click area (uses pet's internal position)
         self.pet_click_area = pygame.Rect(self.pet.x - PET_CLICK_AREA_WIDTH // 2, self.pet.y - PET_CLICK_AREA_HEIGHT // 2, PET_CLICK_AREA_WIDTH, PET_CLICK_AREA_HEIGHT)
         
-        # Platforms (temporary, will be loaded from scene later)
-        self.platforms = [
-            pygame.Rect(0, 600, SCREEN_WIDTH, 200), # Ground
-            pygame.Rect(200, 450, 200, 20),         # Elevated platform 1
-            pygame.Rect(600, 300, 200, 20),         # Elevated platform 2
-        ]
+        # Load collision zones from scene.json — supports block_* assets with collision metadata
+        self.platforms = []
+        scene_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scene.json")
+        try:
+            with open(scene_file, "r") as f:
+                scene_data = json.load(f)
+
+            for obj in scene_data:
+                name = obj.get("name", "")
+                size = obj.get("size", [64, 64])
+                width, height = size[0], size[1]
+                x, y = obj.get("pos", [0, 0])
+
+                # If object explicitly has collision info
+                if "collision" in obj:
+                    collision_height = obj["collision"].get("top", 20)
+                    self.platforms.append(pygame.Rect(x, y, width, collision_height))
+
+                # Fallback: treat all block_* assets as collision zones
+                elif "block_" in name:
+                    self.platforms.append(pygame.Rect(x, y, width, 20))
+
+        except FileNotFoundError:
+            print("No scene.json found, using default platforms.")
+        except Exception as e:
+            print(f"Error loading collision zones: {e}")
         
         # UI Components
         self.stat_bars = [
@@ -598,10 +618,6 @@ class GameEngine:
             else:
                 self.screen.blit(obj['sprite'], obj['rect'])
 
-        # Draw platforms
-        for platform_rect in self.platforms:
-            pygame.draw.rect(self.screen, (150, 75, 0), platform_rect) # Brown color for platforms
-
         # Pet
         self.pet.draw(self.screen, self.font_large)
 
@@ -615,6 +631,10 @@ class GameEngine:
             bar.set_value(stats[i])
             bar.draw(self.screen, self.font_medium, self.font_small)
         
+        # Draw collision zones LAST so they appear above everything
+        for platform_rect in self.platforms:
+            pygame.draw.rect(self.screen, (255, 165, 0), platform_rect, 3)
+
         # Coins
         coins_surface = self.font_medium.render(f"💰 {self.pet.stats.coins}", True, RETRO_DARK)
         self.screen.blit(coins_surface, (50, 130))

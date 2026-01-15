@@ -308,9 +308,6 @@ class Pet:
         # Apply gravity
         self.velocity_y += self.gravity * dt
 
-        # Update position
-        self.x += self.velocity_x * dt
-        self.y += self.velocity_y * dt
 
         # Determine current sprite size for collision
         pet_width = 64
@@ -323,24 +320,49 @@ class Pet:
         # Screen bounds
         self.x = max(pet_width // 2, min(SCREEN_WIDTH - pet_width // 2, self.x))
 
-        # Collision with platforms (bottom-center reference)
+        # Collision using standard AABB with bottom reference
         self.on_ground = False
+
+        # Pet’s bounding box (AABB)
+        pet_left   = self.x - pet_width // 2
+        pet_right  = self.x + pet_width // 2
+        pet_bottom = self.y
+        pet_top    = self.y - pet_height
+
+        next_bottom = pet_bottom + self.velocity_y * dt
+        next_top    = next_bottom - pet_height
+        next_x = self.x + self.velocity_x * dt
+        next_y = self.y + self.velocity_y * dt
+
+        # Apply horizontal movement immediately (safe)
+        self.x = next_x
+
         if platforms:
             for platform in platforms:
-                if self.velocity_y >= 0:  # Only check falling down
-                    pet_bottom = self.y
-                    pet_top = self.y - pet_height
-                    pet_left = self.x - pet_width // 2
-                    pet_right = self.x + pet_width // 2
-                    if (pet_right > platform.left and pet_left < platform.right and
-                        pet_bottom >= platform.top and pet_top < platform.top):
-                        self.y = platform.top
-                        self.velocity_y = 0
-                        self.on_ground = True
-                        break
+                p_left   = platform.left
+                p_right  = platform.right
+                p_top    = platform.top
+                p_bottom = platform.bottom
 
-        # Fallback to bottom of screen
-        if not self.on_ground and self.y > 600:
+                # horizontal overlap?
+                horizontal_hit = pet_right > p_left and pet_left < p_right
+                if not horizontal_hit:
+                    continue
+
+                # falling downward onto top surface?
+                if pet_bottom <= p_top and next_bottom >= p_top:
+                    # snap to platform
+                    self.y = p_top
+                    self.velocity_y = 0
+                    self.on_ground = True
+                    break
+
+        # If still airborne apply next_y
+        if not self.on_ground:
+            self.y = next_y
+
+        # Floor clamp
+        if self.y > 600:
             self.y = 600
             self.velocity_y = 0
             self.on_ground = True
@@ -531,6 +553,16 @@ class Pet:
         if current_sprite_frame:
             sprite_rect = current_sprite_frame.get_rect(midbottom=(self.x, self.y))
             surface.blit(current_sprite_frame, sprite_rect)
+
+            # --- Debug: Draw collision box ---
+            pet_width = 64
+            pet_height = 64
+            current_frame = self.animation_manager.get_current_frame()
+            if current_frame:
+                pet_width = current_frame.get_width()
+                pet_height = current_frame.get_height()
+            collision_rect = pygame.Rect(self.x - pet_width // 2, self.y - pet_height, pet_width, pet_height)
+            pygame.draw.rect(surface, (0, 255, 0), collision_rect, 2)  # Green outline for pet collision box
         
         # --- Action Feedback Overlay ---
         # (This part of the original code was for displaying specific action feedback)
