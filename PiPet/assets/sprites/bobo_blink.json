@@ -1,5 +1,5 @@
 { "frames": {
-   "bobo_blink.png": {
+   "bobo_blink png": {
     "frame": { "x": 0, "y": 0, "w": 320, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -11,16 +11,21 @@
  "meta": {
   "app": "https://www.aseprite.org/",
   "version": "1.x-dev",
-  "image": "bobo_blink-sheet.png",
+  "image": "bobo_blink.png",
   "format": "RGBA8888",
   "size": { "w": 320, "h": 128 },
   "scale": "1",
   "frameTags": [
   ],
   "layers": [
-   { "name": "Layer", "opacity": 255, "blendMode": "normal" }
+   { "name": "Layer 1", "opacity": 255, "blendMode": "normal" }
   ],
   "slices": [
+   { "name": "blilnk5", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 256, "y": 0, "w": 64, "h": 128 } }] },
+   { "name": "blilnk4", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 192, "y": 0, "w": 64, "h": 128 } }] },
+   { "name": "blilnk3", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 128, "y": 0, "w": 64, "h": 128 } }] },
+   { "name": "blilnk2", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 64, "y": 0, "w": 64, "h": 128 } }] },
+   { "name": "blilnk1", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 0, "y": 0, "w": 64, "h": 128 } }] }
   ]
  }
 }

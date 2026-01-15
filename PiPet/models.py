@@ -1,4 +1,3 @@
-import math
 from enum import Enum, auto
 from dataclasses import dataclass
 
@@ -50,6 +49,11 @@ class PetState(Enum):
 
         return super()._missing_(value)
 
+class PetAnimations(Enum):
+    IDLE = auto()
+    BLINK = auto()
+    SLEEPING = auto()
+    JUMP = auto()
 
 @dataclass
 class PetStats:
@@ -82,8 +86,10 @@ class PetStats:
         
         # Happiness decay (faster if hungry or sick)
         happy_rate = HAPPY_DECAY_SEC
-        if self.fullness < 20.0: happy_rate += 5.0 / 3600.0
-        if current_state == PetState.SICK: happy_rate += 10.0 / 3600.0
+        if self.fullness < 20.0:
+            happy_rate += 5.0 / 3600.0
+        if current_state == PetState.SICK:
+            happy_rate += 10.0 / 3600.0
         self.happiness = self.clamp(self.happiness - happy_rate * dt)
         
         # Energy recovery vs drain

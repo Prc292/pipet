@@ -1,6 +1,6 @@
 import pygame
 from typing import Tuple, Optional, Callable
-from constants import RETRO_SHADOW, RETRO_DARK, RETRO_PINK, RETRO_LIGHT, BUTTON_SHADOW_OFFSET, BUTTON_BORDER_RADIUS, BUTTON_GLASS_ALPHA, BUTTON_BORDER_WIDTH
+from constants import RETRO_SHADOW, RETRO_DARK, BUTTON_SHADOW_OFFSET, BUTTON_BORDER_RADIUS, BUTTON_GLASS_ALPHA, BUTTON_BORDER_WIDTH
 
 class ModernRetroButton:
     """Touch-friendly button with retro pixel aesthetic"""

@@ -1,6 +1,9 @@
 import pygame
 import time
-from constants import *
+from constants import (
+    SCREEN_WIDTH, SCREEN_HEIGHT, BUTTON_WIDTH, BUTTON_HEIGHT,
+    RETRO_PINK, COLOR_BG, COLOR_TEXT, COLOR_UI_BAR_BG
+)
 from ui_components import ModernRetroButton
 
 class GardeningGame:

@@ -6,6 +6,10 @@ SCREEN_HEIGHT = 800
 FPS = 60
 DB_FILE = "pet_life.db"
 TIME_SCALE_FACTOR = 1 # 1 = real time, 10 = 10x faster!
+TIME_TO_BABY_SEC = 10.0  # 90 game-seconds (90 / 10)
+TIME_TO_CHILD_SEC = 17280.0 # 2 game-days (2 * 24 * 60 * 60 / 10)
+TIME_TO_TEEN_SEC = 34560.0 # 4 game-days (4 * 24 * 60 * 60 / 10)
+TIME_TO_ADULT_SEC = 60480.0 # 7 game-days (7 * 24 * 60 * 60 / 10)
 SAVE_INTERVAL = 300 # Save every 5 minutes (300 seconds)
 POINTS_PER_WIN = 10
 

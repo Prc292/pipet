@@ -21,6 +21,11 @@
    { "name": "Layer", "opacity": 255, "blendMode": "normal" }
   ],
   "slices": [
+   { "name": "Slice 5", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 256, "y": 0, "w": 64, "h": 128 } }] },
+   { "name": "Slice 4", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 192, "y": 0, "w": 64, "h": 128 } }] },
+   { "name": "Slice 3", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 128, "y": 0, "w": 64, "h": 128 } }] },
+   { "name": "Slice 2", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 64, "y": 0, "w": 64, "h": 128 } }] },
+   { "name": "Slice 1", "color": "#0000ffff", "keys": [{ "frame": 0, "bounds": {"x": 0, "y": 0, "w": 64, "h": 128 } }] }
   ]
  }
 }

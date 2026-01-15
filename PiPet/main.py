@@ -8,13 +8,22 @@ import os
 import sys
 import pygame
 from ui_components import ModernRetroButton
-from typing import Tuple, Optional, Callable # Still needed for other classes in main.py
+from typing import Tuple
 import datetime
 import time
 import json
 
 # Import your existing modules
-from constants import *
+from constants import (
+    SCREEN_WIDTH, SCREEN_HEIGHT, DB_FILE, MESSAGE_LOG_X, MESSAGE_LOG_Y,
+    MESSAGE_LOG_WIDTH, MESSAGE_LOG_HEIGHT, PET_CENTER_X, PET_CENTER_Y,
+    PET_CLICK_AREA_WIDTH, PET_CLICK_AREA_HEIGHT, STAT_BAR_WIDTH, STAT_BAR_HEIGHT,
+    BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT, RETRO_BLUE, RETRO_DARK, RETRO_SHADOW,
+    STAT_BAR_BORDER_RADIUS, STAT_BAR_FILL_BORDER_RADIUS, STAT_BAR_CHUNK_SIZE,
+    RETRO_LIGHT, RETRO_PURPLE, TIME_SCALE_FACTOR, COLOR_DAY_BG, COLOR_DUSK_BG,
+    COLOR_DAWN_BG, COLOR_NIGHT_BG, SAVE_INTERVAL, FPS, RETRO_PINK, RETRO_YELLOW,
+    RETRO_GREEN, RETRO_ORANGE
+)
 from models import GameState, PetState, PetStats
 from database import DatabaseManager
 from pet_entity import Pet
@@ -235,7 +244,7 @@ class ModernMessageLog:
             tab_surface.fill((*RETRO_PURPLE, 200))
             pygame.draw.rect(tab_surface, RETRO_DARK, tab_surface.get_rect(), 3, border_radius=8)
             
-            text = f"📨 Messages"
+            text = "📨 Messages"
             if self.unread_count > 0:
                 text += f" ({self.unread_count})"
             text_surface = font.render(text, True, RETRO_LIGHT)
@@ -373,7 +382,7 @@ class GameEngine:
         self.message_log = ModernMessageLog(MESSAGE_LOG_X, MESSAGE_LOG_Y, MESSAGE_LOG_WIDTH, MESSAGE_LOG_HEIGHT)
 
         # Pet
-        self.pet = Pet(self.db, name="Bobo", message_callback=self.add_game_message)
+        self.pet = Pet(self.db, name="Bobo", message_callback=self.add_game_message, initial_x=PET_CENTER_X, initial_y=PET_CENTER_Y)
         self.pet.load()
 
         # Game state
@@ -382,28 +391,31 @@ class GameEngine:
         self.minigame = None
         self.last_save_time = time.time()
         
-        # Pet position
-        self.pet_center_x = PET_CENTER_X
-        self.pet_center_y = PET_CENTER_Y
-        self.pet_click_area = pygame.Rect(self.pet_center_x - PET_CLICK_AREA_WIDTH // 2, self.pet_center_y - PET_CLICK_AREA_HEIGHT // 2, PET_CLICK_AREA_WIDTH, PET_CLICK_AREA_HEIGHT)
+        # Pet click area (uses pet's internal position)
+        self.pet_click_area = pygame.Rect(self.pet.x - PET_CLICK_AREA_WIDTH // 2, self.pet.y - PET_CLICK_AREA_HEIGHT // 2, PET_CLICK_AREA_WIDTH, PET_CLICK_AREA_HEIGHT)
         
         # UI Components
         self.stat_bars = [
-            PixelStatBar(50, 50, STAT_BAR_WIDTH, STAT_BAR_HEIGHT, "Happy", "😊", RETRO_YELLOW),
-            PixelStatBar(300, 50, STAT_BAR_WIDTH, STAT_BAR_HEIGHT, "Full", "🍔", RETRO_GREEN),
+            PixelStatBar(50, 50, STAT_BAR_WIDTH, STAT_BAR_HEIGHT, "Happy", "😊", RETRO_BLUE),
+            PixelStatBar(300, 50, STAT_BAR_WIDTH, STAT_BAR_HEIGHT, "Full", "🍔", RETRO_BLUE),
             PixelStatBar(550, 50, STAT_BAR_WIDTH, STAT_BAR_HEIGHT, "Energy", "⚡", RETRO_BLUE),
-            PixelStatBar(800, 50, STAT_BAR_WIDTH, STAT_BAR_HEIGHT, "Health", "❤️", RETRO_PINK),
-            PixelStatBar(1050, 50, STAT_BAR_WIDTH, STAT_BAR_HEIGHT, "Disc", "💪", RETRO_PURPLE),
+            PixelStatBar(800, 50, STAT_BAR_WIDTH, STAT_BAR_HEIGHT, "Health", "❤️", RETRO_BLUE),
+            PixelStatBar(1050, 50, STAT_BAR_WIDTH, STAT_BAR_HEIGHT, "Disc", "💪", RETRO_BLUE),
         ]
         
-        self.buttons = [
-            ModernRetroButton(50, BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT, "FEED", RETRO_GREEN, "🍔", self.handle_feed),
+        # Action buttons (initially hidden)
+        self.show_buttons = False
+        self.action_buttons = [
+            ModernRetroButton(50, BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT, "FEED", RETRO_BLUE, "🍔", self.handle_feed),
             ModernRetroButton(250, BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT, "PLAY", RETRO_BLUE, "🎮", self.handle_activities),
-            ModernRetroButton(450, BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT, "TRAIN", RETRO_PURPLE, "💪", self.handle_train),
-            ModernRetroButton(650, BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT, "SLEEP", RETRO_ORANGE, "😴", self._toggle_sleep),
-            ModernRetroButton(850, BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT, "SHOP", RETRO_YELLOW, "🛒", self.handle_shop),
-            ModernRetroButton(1050, BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT, "QUIT", RETRO_PINK, "❌", lambda: sys.exit()),
+            ModernRetroButton(450, BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT, "TRAIN", RETRO_BLUE, "💪", self.handle_train),
+            ModernRetroButton(650, BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT, "SLEEP", RETRO_BLUE, "😴", self._toggle_sleep),
+            ModernRetroButton(850, BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT, "SHOP", RETRO_BLUE, "🛒", self.handle_shop),
+            ModernRetroButton(1050, BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT, "QUIT", RETRO_BLUE, "❌", lambda: sys.exit()),
         ]
+
+        # Button to toggle action buttons visibility
+        self.toggle_buttons_button = ModernRetroButton(50, 640, 90, 50, "Action", RETRO_BLUE, "↕️", self._toggle_action_buttons)
         
         self.bubble = MessageBubble(640, 500)
         
@@ -448,7 +460,7 @@ class GameEngine:
                 self.db.remove_item_from_inventory(item_name, 1)
                 
             self.add_game_message(f"Used {item_name}!")
-            self.bubble.show(f"Thanks! 😊")
+            self.bubble.show("Thanks! 😊")
             
             if self.sound_eat:
                 self.sound_eat.play()
@@ -529,6 +541,11 @@ class GameEngine:
             self.sound_click.play()
         shop = PiPetShop()
         shop.run()
+
+    def _toggle_action_buttons(self):
+        if self.sound_click:
+            self.sound_click.play()
+        self.show_buttons = not self.show_buttons
     
     def handle_heal(self):
         if self.pet.state == PetState.SICK:
@@ -575,7 +592,7 @@ class GameEngine:
                 self.screen.blit(obj['sprite'], obj['rect'])
 
         # Pet
-        self.pet.draw(self.screen, self.pet_center_x, self.pet_center_y, self.font_large)
+        self.pet.draw(self.screen, self.font_large)
 
         # Thought bubble
         self.bubble.draw(self.screen, self.font_small)
@@ -591,9 +608,13 @@ class GameEngine:
         coins_surface = self.font_medium.render(f"💰 {self.pet.stats.coins}", True, RETRO_DARK)
         self.screen.blit(coins_surface, (50, 130))
         
-        # Buttons
-        for button in self.buttons:
-            button.draw(self.screen, self.font_medium)
+        # Toggle button for action buttons
+        self.toggle_buttons_button.draw(self.screen, self.font_small)
+
+        # Action Buttons (conditionally drawn)
+        if self.show_buttons:
+            for button in self.action_buttons:
+                button.draw(self.screen, self.font_medium)
         
         # Message log
         self.message_log.draw(self.screen, self.font_medium, self.font_small)
@@ -701,6 +722,9 @@ class GameEngine:
             else:
                 bg_color = COLOR_NIGHT_BG
             
+            # Fill the background with the determined color
+            self.screen.fill(bg_color)
+            
             # Pointer position for minigames
             current_pointer_position = pygame.mouse.get_pos()
             
@@ -711,6 +735,10 @@ class GameEngine:
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_SPACE:
                         self.pet.start_jump_animation()
+                    elif event.key == pygame.K_LEFT:
+                        self.pet.move_left(dt)
+                    elif event.key == pygame.K_RIGHT:
+                        self.pet.move_right(dt)
                 # Handle minigame events
                 if self.game_state == GameState.CATCH_THE_FOOD_MINIGAME and event.type in [pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP]:
                     self.minigame.handle_event(event, current_pointer_position)
@@ -734,14 +762,20 @@ class GameEngine:
                                 if self.sound_click:
                                     self.sound_click.play()
                         
+                        # Handle toggle buttons button
+                        if self.toggle_buttons_button.rect.collidepoint(pos):
+                            self.toggle_buttons_button.handle_event(pos, event.type)
+                        
+                        # Check action buttons (only if visible)
+                        if self.show_buttons:
+                            for button in self.action_buttons:
+                                button.handle_event(pos, event.type)
+                        
                         # Check pet click (for healing)
                         if self.pet.state == PetState.SICK:
+                            self.pet_click_area = pygame.Rect(self.pet.x - PET_CLICK_AREA_WIDTH // 2, self.pet.y - PET_CLICK_AREA_HEIGHT // 2, PET_CLICK_AREA_WIDTH, PET_CLICK_AREA_HEIGHT)
                             if self.pet_click_area.collidepoint(pos):
                                 self.handle_heal()
-                        
-                        # Check buttons
-                        for button in self.buttons:
-                            button.handle_event(pos, event.type)
                     
                     elif self.game_state == GameState.INVENTORY_VIEW:
                         self.handle_inventory_clicks(pos)
@@ -749,16 +783,19 @@ class GameEngine:
                     elif self.game_state == GameState.ACTIVITIES_VIEW:
                         self.handle_activities_clicks(pos)
                 
-                # Button press events
+                # Button press events (for visual feedback on press)
             if event.type == pygame.MOUSEBUTTONDOWN:
                     pos = pygame.mouse.get_pos()
                     if self.game_state == GameState.PET_VIEW:
-                        for button in self.buttons:
-                            button.handle_event(pos, event.type)
+                        if self.show_buttons:
+                            for button in self.action_buttons:
+                                button.handle_event(pos, event.type)
+                        if self.toggle_buttons_button.rect.collidepoint(pos):
+                            self.toggle_buttons_button.handle_event(pos, event.type)
             
             # Update minigames
             if self.game_state == GameState.CATCH_THE_FOOD_MINIGAME:
-                self.minigame.update(current_pointer_pos)
+                self.minigame.update(current_pointer_position)
                 if self.minigame.game_over_acknowledged:
                     score = self.minigame.score
                     self.pet.stats.happiness = self.pet.stats.clamp(self.pet.stats.happiness + score // 2)
@@ -799,6 +836,9 @@ class GameEngine:
                     self.stat_bars[4].flash()
                 
                 self.update_prev_stats()
+
+                # Update the pet click area as the pet moves
+                self.pet_click_area = pygame.Rect(self.pet.x - PET_CLICK_AREA_WIDTH // 2, self.pet.y - PET_CLICK_AREA_HEIGHT // 2, PET_CLICK_AREA_WIDTH, PET_CLICK_AREA_HEIGHT)
             
             # Update UI components
             for bar in self.stat_bars:
