@@ -89,6 +89,11 @@ class Pet:
         self.friction_x = 800.0 # deceleration when not accelerating
         self.on_ground = False # Is the pet currently on a platform?
 
+        # Jump mechanics
+        self.coyote_timer = 0.0
+        self.coyote_duration = 0.1  # 100ms grace period
+        self.just_jumped = False
+
         # Movement state for input handling
         self.is_moving_left = False
         self.is_moving_right = False
@@ -258,7 +263,7 @@ class Pet:
                     self.message_callback({"text": f"{self.name} needs more discipline to accept treatment.", "notify": False})
 
 
-    def update(self, dt, current_hour, platforms=None): # Added platforms parameter
+    def update(self, dt, current_hour, platforms=None, jump_requested=False): # Added jump_requested parameter
         """Handles real-time stat decay, action timers, and evolution checks, plus physics."""
 
         scaled_dt = dt * TIME_SCALE_FACTOR
@@ -304,6 +309,24 @@ class Pet:
 
         # Clamp horizontal velocity
         self.velocity_x = max(-self.max_speed_x, min(self.max_speed_x, self.velocity_x))
+
+        # --- Coyote time update ---
+        if platforms:
+            # on_ground will be set in collision detection below
+            pass
+        if self.on_ground:
+            self.coyote_timer = self.coyote_duration
+        else:
+            self.coyote_timer = max(0, self.coyote_timer - dt)
+
+        # --- Handle jump request ---
+        self.just_jumped = False
+        if jump_requested and self.coyote_timer > 0:
+            self.velocity_y = -self.jump_strength
+            self.on_ground = False
+            self.coyote_timer = 0
+            self.just_jumped = True
+            self.animation_manager.set_animation(PetAnimations.JUMP)
 
         # Apply gravity
         self.velocity_y += self.gravity * dt
@@ -356,6 +379,10 @@ class Pet:
                     self.velocity_y = 0
                     self.on_ground = True
                     break
+
+        # Variable jump height (cut jump if key released)
+        # This requires main.py to handle jump_pressed vs. jump_held, but for now we assume jump_requested is False if released
+        # Optional: implement later if needed
 
         # If still airborne apply next_y
         if not self.on_ground:

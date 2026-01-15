@@ -1,7 +1,6 @@
 """
 Complete integrated game engine with modern-retro UI
-Full integration with your existing codebase
-Optimized for 1280x800 touchscreen on Raspberry Pi 3B
+Optimized for 1280x800 touchscreen 
 """
 
 import os
@@ -467,6 +466,10 @@ class GameEngine:
             print(f"Warning: Could not load sound files. Error: {e}")
             self.sound_click = self.sound_eat = self.sound_play = self.sound_heal = None
 
+        # Jump input buffering
+        self.jump_buffer_timer = 0.0
+        self.jump_buffer_duration = 0.1  # 100ms buffer
+
     def update_prev_stats(self):
         self.prev_stats.fullness = self.pet.stats.fullness
         self.prev_stats.happiness = self.pet.stats.happiness
@@ -739,6 +742,10 @@ class GameEngine:
             last_time = current_time
             dt = min(dt, 0.1)  # Cap dt to avoid large jumps
             
+            # Update jump buffer timer
+            if self.jump_buffer_timer > 0:
+                self.jump_buffer_timer = max(0, self.jump_buffer_timer - dt)
+            
             # Update game time
             self.game_time += datetime.timedelta(seconds=dt * TIME_SCALE_FACTOR)
             current_hour = self.game_time.hour
@@ -765,7 +772,8 @@ class GameEngine:
                     running = False
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_SPACE:
-                        self.pet.start_jump_animation()
+                        # Start jump buffer
+                        self.jump_buffer_timer = self.jump_buffer_duration
 
                 # Handle minigame events
                 if self.game_state == GameState.CATCH_THE_FOOD_MINIGAME and event.type in [pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP]:
@@ -849,7 +857,12 @@ class GameEngine:
             
             # Update pet and UI
             if self.game_state == GameState.PET_VIEW:
-                self.pet.update(dt, current_hour, self.platforms)
+                jump_requested = self.jump_buffer_timer > 0
+                self.pet.update(dt, current_hour, self.platforms, jump_requested)
+
+                # Reset buffer if jump executed
+                if jump_requested and getattr(self.pet, 'just_jumped', False):
+                    self.jump_buffer_timer = 0
                 
                 # Update plant animation
                 if self.plant_animation_frames:
