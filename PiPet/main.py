@@ -1,6 +1,6 @@
 """
 Complete integrated game engine with modern-retro UI
-Optimized for 1280x800 touchscreen 
+Optimized for 1280x800 
 """
 
 import os
