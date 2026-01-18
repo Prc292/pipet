@@ -345,10 +345,31 @@ class GameEngine:
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         # Load background image
         base_path = os.path.dirname(__file__)
-        bg_path = os.path.join(base_path, "assets", "backgrounds", "background.png")
+        
+        # --- Parallax Background Setup ---
+        self.camera_x = 0.0
+        self.background_layers = []
+        
+        # Load parallax backgrounds (plx-1 to plx-5)
+        for i in range(1, 6):
+            path = os.path.join(base_path, "assets", "backgrounds", f"plx-{i}.png")
+            if os.path.exists(path):
+                image = pygame.image.load(path).convert_alpha()
+                image = pygame.transform.scale(image, (SCREEN_WIDTH, SCREEN_HEIGHT))
+                # Distribute speeds from 0.1 (far) to 0.5 (near)
+                speed = i * 0.1
+                self.background_layers.append({"image": image, "speed": speed})
 
-        self.background = pygame.image.load(bg_path).convert()
-        self.background = pygame.transform.scale(self.background, (SCREEN_WIDTH, SCREEN_HEIGHT))
+        # Load ground
+        self.ground_y = 600  # Default ground y
+        ground_path = os.path.join(base_path, "assets", "backgrounds", "ground.png")
+        if os.path.exists(ground_path):
+            ground_image = pygame.image.load(ground_path).convert_alpha()
+            ground_image = pygame.transform.scale(ground_image, (SCREEN_WIDTH, ground_image.get_height()))
+            self.ground_y = SCREEN_HEIGHT - ground_image.get_height()
+            # Ground moves at the same speed as the foreground
+            self.background_layers.append({"image": ground_image, "speed": 1.0, "y_offset": self.ground_y})
+        
         pygame.display.set_caption("PiPet - Retro Edition")
 
         # Load all assets
@@ -617,12 +638,12 @@ class GameEngine:
             if 'plant_sway' in obj['name']:
                 if self.plant_animation_frames:
                     frame_surface = self.plant_animation_frames[self.plant_frame_index]
-                    self.screen.blit(frame_surface, obj['rect'].topleft)
+                    self.screen.blit(frame_surface, obj['rect'].move(-self.camera_x, 0).topleft)
             else:
-                self.screen.blit(obj['sprite'], obj['rect'])
+                self.screen.blit(obj['sprite'], obj['rect'].move(-self.camera_x, 0))
 
         # Pet
-        self.pet.draw(self.screen, self.font_large)
+        self.pet.draw(self.screen, self.font_large, self.camera_x)
 
         # Thought bubble
         self.bubble.draw(self.screen, self.font_small)
@@ -636,7 +657,7 @@ class GameEngine:
         
         # Draw collision zones LAST so they appear above everything
         for platform_rect in self.platforms:
-            pygame.draw.rect(self.screen, (255, 165, 0), platform_rect, 3)
+            pygame.draw.rect(self.screen, (255, 165, 0), platform_rect.move(-self.camera_x, 0), 3)
 
         # Coins
         coins_surface = self.font_medium.render(f"💰 {self.pet.stats.coins}", True, RETRO_DARK)
@@ -750,18 +771,8 @@ class GameEngine:
             self.game_time += datetime.timedelta(seconds=dt * TIME_SCALE_FACTOR)
             current_hour = self.game_time.hour
             
-            # Background color based on time
-            if 6 <= current_hour < 18:
-                bg_color = COLOR_DAY_BG
-            elif 18 <= current_hour < 22:
-                bg_color = COLOR_DUSK_BG
-            elif 5 <= current_hour < 6:
-                bg_color = COLOR_DAWN_BG
-            else:
-                bg_color = COLOR_NIGHT_BG
-            
-            # Fill the background with the determined color
-            self.screen.fill(bg_color)
+            # Fill the background with a static color
+            self.screen.fill(COLOR_DAY_BG)
             
             # Pointer position for minigames
             current_pointer_position = pygame.mouse.get_pos()
@@ -858,7 +869,12 @@ class GameEngine:
             # Update pet and UI
             if self.game_state == GameState.PET_VIEW:
                 jump_requested = self.jump_buffer_timer > 0
-                self.pet.update(dt, current_hour, self.platforms, jump_requested)
+                self.pet.update(dt, current_hour, self.platforms, jump_requested, self.ground_y)
+
+                # --- Camera Update ---
+                target_camera_x = self.pet.x - SCREEN_WIDTH / 2
+                # Smoothly follow the pet. The 0.05 determines the "lag" of the camera.
+                self.camera_x += (target_camera_x - self.camera_x) * 0.05
 
                 # Reset buffer if jump executed
                 if jump_requested and getattr(self.pet, 'just_jumped', False):
@@ -900,7 +916,15 @@ class GameEngine:
                 self.add_game_message("Game saved!")
             
             # Draw
-            self.screen.blit(self.background, (0, 0))
+            # --- Parallax Background Drawing ---
+            for layer in self.background_layers:
+                bg_width = layer["image"].get_width()
+                y_pos = layer.get("y_offset", 0)  # Get y_offset, default to 0
+                # Calculate the position of the background layer
+                x_pos = -((self.camera_x * layer["speed"]) % bg_width)
+                self.screen.blit(layer["image"], (x_pos, y_pos))
+                self.screen.blit(layer["image"], (x_pos + bg_width, y_pos))
+
             
             if self.game_state == GameState.PET_VIEW:
                 self.draw_main_view()

@@ -263,7 +263,7 @@ class Pet:
                     self.message_callback({"text": f"{self.name} needs more discipline to accept treatment.", "notify": False})
 
 
-    def update(self, dt, current_hour, platforms=None, jump_requested=False): # Added jump_requested parameter
+    def update(self, dt, current_hour, platforms=None, jump_requested=False, ground_y=600):
         """Handles real-time stat decay, action timers, and evolution checks, plus physics."""
 
         scaled_dt = dt * TIME_SCALE_FACTOR
@@ -340,9 +340,6 @@ class Pet:
             pet_width = current_frame.get_width()
             pet_height = current_frame.get_height()
 
-        # Screen bounds
-        self.x = max(pet_width // 2, min(SCREEN_WIDTH - pet_width // 2, self.x))
-
         # Collision using standard AABB with bottom reference
         self.on_ground = False
 
@@ -389,8 +386,8 @@ class Pet:
             self.y = next_y
 
         # Floor clamp
-        if self.y > 600:
-            self.y = 600
+        if self.y > ground_y:
+            self.y = ground_y
             self.velocity_y = 0
             self.on_ground = True
 
@@ -538,16 +535,19 @@ class Pet:
             self.animation_manager.set_animation(PetAnimations.JUMP)
     
     # --- Drawing Logic ---
-    def draw(self, surface: pygame.Surface, font: pygame.font.Font):
+    def draw(self, surface: pygame.Surface, font: pygame.font.Font, camera_x: float = 0.0):
         """Draws the pet, applying visual modifications based on state and health."""
+
+        # Calculate the screen-relative position of the pet
+        screen_x = self.x - camera_x
 
         # --- Handle DEAD/EGG State (Early Exit) ---
         if self.state == PetState.DEAD:
             dead_colour = (80, 80, 80)
             # Placeholder for dead pet
-            pygame.draw.rect(surface, dead_colour, (self.x - 32, self.y - 32, 64, 64))
+            pygame.draw.rect(surface, dead_colour, (screen_x - 32, self.y - 32, 64, 64))
             dead_text = font.render("REST IN PEACE", False, (255, 0, 0))
-            text_rect = dead_text.get_rect(center=(self.x, self.y + 40))
+            text_rect = dead_text.get_rect(center=(screen_x, self.y + 40))
             surface.blit(dead_text, text_rect)
             return
         
@@ -557,12 +557,12 @@ class Pet:
             
             # Simple egg placeholder
             egg_color = (245, 245, 210)
-            pygame.draw.ellipse(surface, egg_color, (self.x - 30, self.y - 50, 60, 80))
+            pygame.draw.ellipse(surface, egg_color, (screen_x - 30, self.y - 50, 60, 80))
             # Draw crack lines based on crack_level (simplified)
             if crack_level > 0.3:
-                pygame.draw.line(surface, (100, 80, 50), (self.x - 20, self.y - 20), (self.x + 20, self.y - 10), 2)
+                pygame.draw.line(surface, (100, 80, 50), (screen_x - 20, self.y - 20), (screen_x + 20, self.y - 10), 2)
             if crack_level > 0.6:
-                pygame.draw.line(surface, (100, 80, 50), (self.x - 10, self.y + 10), (self.x + 10, self.y + 20), 2)
+                pygame.draw.line(surface, (100, 80, 50), (screen_x - 10, self.y + 10), (screen_x + 10, self.y + 20), 2)
             
             time_left = max(0, int(TIME_TO_BABY_SEC - time_elapsed_game))
             minutes = time_left // 60
@@ -570,7 +570,7 @@ class Pet:
             time_str = f"{minutes:02d}:{seconds:02d}"
 
             egg_text = font.render(time_str, False, COLOR_TEXT)
-            text_rect = egg_text.get_rect(midright=(self.x - 40, self.y))
+            text_rect = egg_text.get_rect(midright=(screen_x - 40, self.y))
             surface.blit(egg_text, text_rect)
             return # Ensure nothing else is drawn when in EGG state
         
@@ -578,7 +578,7 @@ class Pet:
         current_sprite_frame = self.animation_manager.get_current_frame()
         
         if current_sprite_frame:
-            sprite_rect = current_sprite_frame.get_rect(midbottom=(self.x, self.y))
+            sprite_rect = current_sprite_frame.get_rect(midbottom=(screen_x, self.y))
             surface.blit(current_sprite_frame, sprite_rect)
 
             # --- Debug: Draw collision box ---
@@ -588,7 +588,7 @@ class Pet:
             if current_frame:
                 pet_width = current_frame.get_width()
                 pet_height = current_frame.get_height()
-            collision_rect = pygame.Rect(self.x - pet_width // 2, self.y - pet_height, pet_width, pet_height)
+            collision_rect = pygame.Rect(screen_x - pet_width // 2, self.y - pet_height, pet_width, pet_height)
             pygame.draw.rect(surface, (0, 255, 0), collision_rect, 2)  # Green outline for pet collision box
         
         # --- Action Feedback Overlay ---
